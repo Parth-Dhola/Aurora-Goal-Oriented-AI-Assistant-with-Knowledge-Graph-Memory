@@ -1,6 +1,6 @@
 # Aurora — Goal-Oriented AI Assistant with Knowledge Graph Memory
 
-[![CI/CD](https://github.com/Parth-Dhola/aurora/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Parth-Dhola/aurora/actions)
+[![CI/CD](https://github.com/Parth-Dhola/aurora-goal-oriented-ai-assistant-with-knowledge-graph-memory/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Parth-Dhola/aurora-goal-oriented-ai-assistant-with-knowledge-graph-memory/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688)
