@@ -2,11 +2,11 @@
 
 [![CI/CD](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Python](https://img.shields.io/badge/python-3.11-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688)
-![LangGraph](https://img.shields.io/badge/LangGraph-0.2.28-orange)
-![Docker](https://img.shields.io/badge/docker-compose-2496ED)
-![MLflow](https://img.shields.io/badge/mlflow-2.3-0194E2)
+[![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688)](https://fastapi.tiangolo.com)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.2.28-orange)](https://github.com/langchain-ai/langgraph)
+[![Docker](https://img.shields.io/badge/docker-compose-2496ED)](https://www.docker.com)
+[![MLflow](https://img.shields.io/badge/mlflow-2.3-0194E2)](https://mlflow.org)
 
 > A stateful GenAI agent built with LangGraph + FastAPI. Uses a SQLite Knowledge Graph to accumulate structured facts and goals from every conversation, then builds a personalised context brief that guides each Gemini response via a CRAG self-reflection pipeline.
 

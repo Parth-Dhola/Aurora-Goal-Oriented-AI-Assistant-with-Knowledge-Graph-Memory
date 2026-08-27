@@ -1,373 +1,215 @@
-# Aurora — Complete Project Guide
+# Aurora — Complete Project Guide (v3.0)
 
-## What Aurora Is
+## Overview
 
-Aurora is a cross-platform AI productivity assistant. It has three parts:
-- **Backend** — a FastAPI server that handles all logic
-- **Telegram bot** — Aurora on Telegram (from v1)
-- **Android app** — a Kivy app that talks to the backend via WebSocket
+**Aurora** is an autonomous, goal-oriented AI productivity and learning assistant designed to help students and engineers master technical topics (like DSA and System Design), organize priorities, and track progress.
+
+Aurora consists of:
+1. **FastAPI Backend with CRAG Agent**: Corrective RAG state graph with LangGraph, SQLite Knowledge Graph memory, and DuckDuckGo search fallback.
+2. **Knowledge Graph (KG) & Obsidian Visualization**: Tracks entities, habits, goals, and struggles as structured graphs exportable directly into Obsidian.
+3. **Telegram Bot**: Full assistant access via Telegram with secure JWT login and auto-completing commands.
+4. **Android App (Kivy)**: Mobile app with real-time WebSocket communication and quick suggestion chips.
+5. **MLOps & CI/CD**: MLflow run & strategy tracking, Docker containerization, and GitHub Actions workflow.
 
 ---
 
-## Part 1 — Project Structure
+## Architecture & System Design
+
+### 1. Corrective RAG (CRAG) Agent (`backend/services/crag_agent.py`)
+
+Rather than blindly answering questions, Aurora evaluates its own retrieved context before generating a response:
+
+```
+User Message
+     │
+     ▼
+┌─────────────────────────────────────────────────────────┐
+│              LangGraph StateGraph (CRAG)                │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  extract_entities                                │   │
+│  │    └─ Gemini: extract facts/goals → update KG   │   │
+│  └─────────────────────┬────────────────────────────┘   │
+│                        │                                │
+│  ┌─────────────────────▼────────────────────────────┐   │
+│  │  retrieve_context                                │   │
+│  │    └─ KG traversal → markdown context brief     │   │
+│  └─────────────────────┬────────────────────────────┘   │
+│                        │                                │
+│  ┌─────────────────────▼────────────────────────────┐   │
+│  │  grade_context  (self-reflection evaluator)      │   │
+│  │    └─ Gemini: "Is context relevant?" YES / NO   │   │
+│  └────────┬──────────────────────────┬──────────────┘   │
+│      RELEVANT                   NOT RELEVANT            │
+│           │                         │                   │
+│  ┌────────▼────────┐       ┌─────────▼───────────┐      │
+│  │    generate     │       │     web_search       │      │
+│  │   (CoT/ReAct)   │       │    (DuckDuckGo)      │      │
+│  └────────┬────────┘       └─────────┬───────────┘      │
+│           │                         │                   │
+│  ┌────────▼──────────────┐          │                   │
+│  │  check_groundedness   │          │                   │
+│  │  "Is answer grounded  │          │                   │
+│  │   in context?" Y / N  │          │                   │
+│  └────────┬──────────────┘          │                   │
+│      NOT GROUNDED ──────────► web_search                │
+└─────────────────────────────────────────────────────────┘
+```
+
+1. **`extract_entities`**: Automatically detects user facts, learning weaknesses, and casual goals from conversation and persists them to the Knowledge Graph.
+2. **`retrieve_context`**: Queries `kg_nodes` and `kg_edges` to assemble a prioritized markdown context brief.
+3. **`grade_context`**: Grades whether the retrieved context is sufficient and relevant to answer the query.
+4. **`generate`**: Synthesizes an actionable response using Gemini with Chain-of-Thought reasoning.
+5. **`check_groundedness`**: Validates whether the answer is factually grounded without hallucinations.
+6. **`web_search`**: Falls back to DuckDuckGo search if internal memory is insufficient or outdated.
+
+---
+
+## Project Structure
 
 ```
 aurora-final/
-├── backend/
-│   ├── app.py                    ← FastAPI entry point. Wires everything together.
+├── .env                              # Secrets (gitignored)
+├── .env.example                      # Configuration template
+├── .gitignore                        # Git exclusion rules
+├── LICENSE                           # MIT License
+├── README.md                         # Project documentation
+├── GUIDE.md                          # Detailed architecture & setup guide
+├── docker-compose.yml                # Multi-container orchestration
+├── nginx.conf                        # Reverse proxy & WebSocket config
+│
+├── backend/                          # FastAPI Backend
+│   ├── app.py                        # FastAPI entry point & router registration
+│   ├── bot.py                        # Telegram Bot interface
+│   ├── requirements.txt              # Python dependencies
+│   ├── Dockerfile                    # Backend container definition
 │   ├── models/
-│   │   └── database.py           ← SQLite setup. Creates all tables on startup.
-│   ├── services/
-│   │   ├── auth_service.py       ← JWT auth logic. Passwords, tokens, user lookup.
-│   │   └── llm_service.py        ← Gemini API. Sends messages, saves history.
+│   │   └── database.py               # SQLite schema (users, tasks, KG, chats, logs)
 │   ├── routes/
-│   │   ├── auth.py               ← /api/auth/register, /login, /me
-│   │   ├── chat.py               ← /api/chat/ (protected, uses LLM)
-│   │   ├── tasks.py              ← /api/tasks/ CRUD
-│   │   ├── stats.py              ← /api/stats/ dashboard data
-│   │   ├── reminders.py          ← /api/reminders/ CRUD
-│   │   └── websocket.py          ← /ws/chat (real-time WebSocket)
-│   └── requirements.txt
-├── android-app/
-│   ├── main.py                   ← Kivy Android app. Login + real-time chat.
-│   └── buildozer.spec            ← APK build configuration.
-├── .env.example                  ← Template for secrets.
-└── GUIDE.md                      ← This file.
+│   │   ├── auth.py                   # /api/auth (JWT registration & login)
+│   │   ├── chat.py                   # /api/chat (CRAG agent REST endpoint)
+│   │   ├── goals.py                  # /api/goals (Goal management & priority tracking)
+│   │   ├── kg.py                     # /api/kg (KG nodes, edges & Obsidian export)
+│   │   ├── tasks.py                  # /api/tasks (Daily task tracking)
+│   │   ├── stats.py                  # /api/stats (Analytics & strategy breakdown)
+│   │   ├── reminders.py              # /api/reminders (Notifications)
+│   │   └── websocket.py              # /ws/chat (Real-time bidirectional chat)
+│   ├── services/
+│   │   ├── crag_agent.py             # LangGraph CRAG StateGraph core
+│   │   ├── kg_service.py             # Entity extraction & SQLite KG CRUD
+│   │   ├── context_builder.py        # KG graph traversal → context brief
+│   │   ├── mlflow_service.py         # MLOps tracking for strategy & prompts
+│   │   ├── llm_service.py            # Chat orchestration & logging
+│   │   └── auth_service.py           # Password hashing & JWT verification
+│   └── tests/
+│       └── test_api.py               # Complete test suite (23 unit/integration tests)
+│
+├── android-app/                      # Android Mobile App (Kivy)
+│   ├── main.py                       # App UI, WebSockets & suggestion chips
+│   └── buildozer.spec                # Android APK build spec
+│
+├── scripts/                          # Automation & Utilities
+│   ├── sync_to_obsidian.py           # One-click KG sync into Obsidian vault
+│   └── deploy.sh                     # Production deployment script
+│
+└── obsidian-KG-vault/                # Generated Obsidian Vault (gitignored)
+    ├── _Overview.md                  # Master KG index & Dataview queries
+    ├── Goals/                        # Goal notes with wikilinks & metadata
+    └── Topics/                       # Topic notes with relationships
 ```
 
 ---
 
-## Part 2 — How Each Technology Works
+## Setup & Running Guide
 
-### FastAPI (replaces Flask)
+### 1. Environment Setup
 
-Flask is synchronous — it handles one request at a time. FastAPI is asynchronous — it can handle thousands of requests simultaneously. This matters for WebSockets.
-
-```python
-# Flask style (old)
-@app.route("/api/chat/", methods=["POST"])
-def send_message():
-    data = request.get_json()      # manual JSON parsing
-    return jsonify({"reply": ...}) # manual JSON response
-
-# FastAPI style (new)
-class ChatRequest(BaseModel):
-    message: str
-    session_id: str = "default"
-
-@router.post("/")
-async def send_message(body: ChatRequest):  # Pydantic validates automatically
-    return {"reply": ...}                   # dict auto-converted to JSON
-```
-
-**Key differences:**
-- `async def` instead of `def` — enables concurrent handling
-- `BaseModel` (Pydantic) replaces `request.get_json()` — validates automatically
-- Returns dict directly — no `jsonify()` needed
-- Auto-generates `/docs` (Swagger UI) — interactive API testing for free
-
-### JWT Authentication
-
-JWT (JSON Web Token) is a way to prove who you are without sending your password every time.
-
-**How it works:**
-1. You send username + password to `/api/auth/login`
-2. Server checks the password, creates a signed token (a long string)
-3. You store that token in your app
-4. Every future request includes the token in the header: `Authorization: Bearer <token>`
-5. Server verifies the token is valid (not expired, not tampered with)
-
-**What a JWT token contains:**
-```
-xxxxx.yyyyy.zzzzz
-  │      │      │
-header  payload  signature
-         │
-    { user_id, username, expires_at }
-```
-
-Anyone can read the payload (it's base64 encoded). But only the server can verify it's genuine, using the SECRET_KEY. This means you never send your password again after login.
-
-**In the code:**
-```python
-# Creating a token (after successful login)
-def create_token(user_id: int, username: str) -> str:
-    payload = {
-        "sub": str(user_id),      # "sub" = subject, standard JWT field
-        "username": username,
-        "exp": datetime.utcnow() + timedelta(hours=168),  # 7 days
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
-
-# Verifying a token (on every protected request)
-def verify_token(token: str) -> dict:
-    payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    return payload  # contains user_id and username
-```
-
-**Protecting an endpoint:**
-```python
-@router.get("/api/stats/")
-async def get_stats(user: dict = Depends(get_current_user)):
-    # If token is missing or invalid, FastAPI auto-returns 401
-    # If valid, user = {"id": 1, "username": "parth"}
-    return {...}
-```
-
-The `Depends(get_current_user)` is a FastAPI dependency. It runs `get_current_user` automatically before your function. If authentication fails, your function never runs.
-
-### WebSockets (real-time, no refreshing)
-
-HTTP is like sending a letter — you send a request, wait for a response, connection closes. To get new data, you send another letter. This is why chat apps without WebSockets feel slow.
-
-WebSocket is like a phone call — connection stays open. Either side can speak at any time. This is why messages appear instantly.
-
-**HTTP flow (old):**
-```
-User types message → POST /api/chat/ → wait 2 seconds → response arrives → display
-To check for new messages: poll every 2 seconds (wasteful)
-```
-
-**WebSocket flow (new):**
-```
-User connects once → connection stays open
-User sends message → server receives instantly → Aurora replies → client receives instantly
-No polling. No refreshing. Feels like WhatsApp.
-```
-
-**How WebSocket authentication works:**
-Regular HTTP sends the token in a header. WebSockets don't have headers after the initial connection. So we pass the token as a URL parameter:
-```
-ws://localhost:8000/ws/chat?token=YOUR_JWT_TOKEN
-```
-
-The server reads it from the URL, verifies it, and either accepts or rejects the connection.
-
-**The message loop:**
-```python
-@router.websocket("/chat")
-async def websocket_chat(websocket: WebSocket, token: str = Query(...)):
-    # 1. Verify token
-    payload = verify_token(token)
-    
-    # 2. Accept connection
-    await websocket.accept()
-    
-    # 3. Keep listening forever
-    while True:
-        data = await websocket.receive_json()    # waits for user message
-        await websocket.send_json({"type": "thinking"})  # instant feedback
-        reply = chat(data["message"])            # call Gemini (1-3 seconds)
-        await websocket.send_json({"type": "message", "reply": reply})
-```
-
-**Message types the server sends:**
-- `{"type": "connected"}` — sent once on connect, welcome message
-- `{"type": "thinking"}` — sent immediately when message received, before Gemini replies
-- `{"type": "message", "reply": "..."}` — Aurora's actual reply
-- `{"type": "error", "detail": "..."}` — if something goes wrong
-
-### Kivy (Python Android app)
-
-Kivy lets you write Python that runs on Android. You define UI elements as Python objects. No XML, no Java, no Kotlin needed.
-
-**Key concepts:**
-
-**Screens and ScreenManager** — like pages in an app. `ScreenManager` handles switching between them.
-```python
-sm = ScreenManager()
-sm.add_widget(LoginScreen(name="login"))
-sm.add_widget(ChatScreen(name="chat"))
-# Switch: sm.current = "chat"
-```
-
-**Layouts** — how widgets are arranged:
-- `BoxLayout(orientation="vertical")` — stacks widgets top to bottom
-- `BoxLayout(orientation="horizontal")` — places widgets side by side
-- `ScrollView` — makes content scrollable
-
-**Clock.schedule_once** — WebSocket runs in a background thread. Kivy UI can only be updated from the main thread. `Clock.schedule_once` safely bridges this:
-```python
-# WRONG — calling UI from background thread crashes
-def _ws_message(self, ws, raw):
-    self.add_bubble("Aurora says...")  # crashes
-
-# RIGHT — schedule UI update on main thread
-def _ws_message(self, ws, raw):
-    Clock.schedule_once(lambda dt: self.add_bubble("Aurora says..."), 0)
-```
-
-**Threading** — API calls take time. If you run them on the main thread, the UI freezes. Running in a background thread keeps the app responsive:
-```python
-threading.Thread(target=self._auth, args=("/auth/login",), daemon=True).start()
-# daemon=True means the thread dies when the app closes
-```
-
-### Password Hashing
-
-Never store plain text passwords. If your database is stolen, attackers get everything.
-
-**How hashing works:**
-```python
-def hash_password(password: str) -> str:
-    salt = os.urandom(32).hex()          # random 64-char string
-    hashed = sha256(salt + password)     # irreversible transformation
-    return f"{salt}:{hashed}"           # store both
-```
-
-A salt is random data added before hashing. Two users with the same password get different hashes. This prevents "rainbow table" attacks (precomputed hash databases).
-
-**Verifying:**
-```python
-def verify_password(plain, stored):
-    salt, hashed = stored.split(":")
-    check = sha256(salt + plain)         # rehash with same salt
-    return check == hashed               # compare
-```
-
----
-
-## Part 3 — Run Steps
-
-### Step 1 — Backend setup
-
+Create a conda environment or Python virtual environment:
 ```bash
-cd aurora-final/backend
+conda create -n aurora python=3.11 -y
 conda activate aurora
+```
+
+Install backend dependencies:
+```bash
+cd backend
 pip install -r requirements.txt
 ```
 
-### Step 2 — Create .env
+### 2. Configure Environment Variables
 
+Create `.env` in the root folder (or copy from `.env.example`):
 ```bash
-cp ../.env.example .env
+cp .env.example .env
 ```
 
-Open `.env` and set:
-- `GEMINI_API_KEY` — from aistudio.google.com/app/apikey
-- `SECRET_KEY` — any long random string, e.g. `mysecretkey123changethis`
+Fill in your secrets:
+- `GEMINI_API_KEY`: Get from [Google AI Studio](https://aistudio.google.com/app/apikey).
+- `SECRET_KEY`: Random 32+ character string.
+- `TELEGRAM_TOKEN`: (Optional) From [@BotFather](https://t.me/BotFather) on Telegram.
+- `AURORA_API_BASE`: `http://localhost:8000/api`
+- `AURORA_USERNAME` & `AURORA_PASSWORD`: Your credentials for local scripts.
 
-### Step 3 — Run the backend
+### 3. Run the Backend API
 
 ```bash
+cd backend
 uvicorn app:app --reload --port 8000
 ```
+- Swagger Documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Health Check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
-You should see:
+### 4. Run the Telegram Bot
+
+In a separate terminal:
+```bash
+cd backend
+conda activate aurora
+python bot.py
 ```
-[Aurora DB] All tables ready.
-[Aurora] Ready!
-[Aurora] Docs → http://localhost:8000/docs
-```
+Send `/start` to your bot on Telegram and log in using `/login <username> <password>`.
 
-### Step 4 — Test in browser (easiest)
+### 5. Visualize the Knowledge Graph in Obsidian
 
-Open `http://localhost:8000/docs`
+1. Ensure the backend server is running.
+2. Run the sync script:
+   ```bash
+   conda activate aurora
+   python scripts/sync_to_obsidian.py
+   ```
+3. The script exports all nodes/edges as Markdown with YAML frontmatter into `obsidian-KG-vault/`.
+4. Open `obsidian-KG-vault` as a vault in Obsidian.
+5. Press **`Cmd + G`** (or `Ctrl + G`) to view the interactive Knowledge Graph.
 
-1. Click `POST /api/auth/register` → Try it out → enter username + password → Execute
-2. Copy the `access_token` from the response
-3. Click the 🔒 **Authorize** button at the top of the page
-4. Enter: `Bearer <paste your token here>` → Authorize
-5. Now try `POST /api/chat/` → enter `{"message": "plan my day"}` → Execute
-6. Aurora replies in the response!
-
-### Step 5 — Test WebSocket in browser console
-
-Get your token first, then open Chrome DevTools (F12) → Console:
-
-```javascript
-const token = "paste_your_token_here"
-const ws = new WebSocket(`ws://localhost:8000/ws/chat?token=${token}`)
-ws.onmessage = (e) => console.log(JSON.parse(e.data))
-ws.send(JSON.stringify({"message": "plan my day", "session_id": "test"}))
-```
-
-Watch the console — you'll see `{"type":"thinking"}` appear immediately, then `{"type":"message","reply":"..."}` a second later. That's real-time WebSocket working.
-
-### Step 6 — Run Android app locally (Mac)
-
-Keep backend running. Open a new terminal:
+### 6. Run the Android App (Locally or on Device)
 
 ```bash
-cd aurora-final/android-app
+cd android-app
 pip install kivy requests websocket-client
 python main.py
 ```
 
-A window opens. Register an account. Chat screen appears. Messages go in real-time via WebSocket.
-
-### Step 7 — Run on real Android device
-
-Your Mac and Android phone must be on the same WiFi.
-
-**Find your Mac's IP:**
-System Settings → WiFi → Details → IP Address (e.g. `192.168.1.17`)
-
-**Edit `android-app/main.py`:**
-```python
-API_BASE = "http://192.168.1.17:8000/api"   # your Mac IP
-WS_BASE  = "ws://192.168.1.17:8000/ws"
-```
-
-**Restart backend to accept connections from the network:**
-```bash
-uvicorn app:app --reload --port 8000 --host 0.0.0.0
-```
-
-`--host 0.0.0.0` means "accept from any device", not just localhost.
-
-Run the Kivy app on your Mac to test. It should connect to the backend over your WiFi.
-
-### Step 8 — Build Android APK
-
-This builds a real `.apk` file you can install on any Android phone.
+### 7. Run Test Suite
 
 ```bash
-# Install buildozer (APK builder)
-pip install buildozer
-
-# First time only — installs Android SDK/NDK (~2GB, takes 20-30 min)
-cd aurora-final/android-app
-buildozer android debug
+cd backend
+pytest tests/ -v
 ```
-
-APK will appear at:
-```
-aurora-final/android-app/bin/aurora-1.0-debug.apk
-```
-
-Transfer to your Android phone (via USB or Google Drive) → install → open Aurora.
-
-**Enable unknown sources on Android:**
-Settings → Security → Install unknown apps → allow your file manager
+All 23 unit & integration tests validate authentication, tasks, goals, Knowledge Graph endpoints, reminders, and stats without making external network calls.
 
 ---
 
-## Part 4 — Resume Impact
+## Docker & Production Deployment
 
-After this project you can say:
+### Run with Docker Compose
+```bash
+docker compose up --build
+```
+- Backend runs on `http://localhost:8000`
+- MLflow dashboard runs on `http://localhost:5001`
 
-> "Built a cross-platform AI productivity assistant — FastAPI backend with JWT authentication, WebSocket real-time chat, Gemini LLM integration with MLflow experiment tracking, Telegram bot with 7 commands, Android app built in Python (Kivy), fully Dockerised with GitHub Actions CI/CD deploying to AWS EC2."
-
-**Skills this adds to your resume:**
-- FastAPI, Uvicorn, ASGI
-- JWT authentication
-- WebSockets
-- Pydantic data validation
-- Android development (Kivy, buildozer)
-- SQLite, Docker, GitHub Actions (from v1)
-- Gemini API, MLflow (from v1)
-
----
-
-## Part 5 — Common Errors and Fixes
-
-| Error | Cause | Fix |
-|---|---|---|
-| `pkg_resources not found` | MLflow + conda conflict | `pip install setuptools==69.5.1 --force-reinstall --no-deps` |
-| `Port 8000 already in use` | Another process | `lsof -i :8000` then kill it, or use different port |
-| `Connection refused` on Android | Wrong IP or backend not running | Check IP, run with `--host 0.0.0.0` |
-| `401 Unauthorized` | Token expired or missing | Login again to get fresh token |
-| `422 Unprocessable Entity` | Missing required field | Check request body has all required fields |
-| WebSocket `4001` close code | Invalid JWT token | Re-login and use fresh token in WS URL |
-| Kivy window black | Missing display drivers | Normal on some Macs, app still works |
+### Continuous Integration (CI/CD)
+The `.github/workflows/ci-cd.yml` workflow automatically:
+1. Runs the test suite on Python 3.11.
+2. Builds and tags multi-architecture Docker images.
+3. Pushes images to Docker Hub (`${{ secrets.DOCKERHUB_USERNAME }}/aurora-backend:latest`).
+4. (Optional) Deploys to EC2 if `EC2_HOST` and `EC2_SSH_KEY` secrets are configured.
