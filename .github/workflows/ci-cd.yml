@@ -72,7 +72,18 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
+      - name: Check if EC2 is configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.EC2_HOST }}" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️  EC2_HOST not set — skipping deploy (add EC2_HOST + EC2_SSH_KEY secrets to enable)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: SSH into EC2 and redeploy
+        if: steps.check.outputs.skip == 'false'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
