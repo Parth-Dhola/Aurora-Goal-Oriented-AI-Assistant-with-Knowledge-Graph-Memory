@@ -10,10 +10,6 @@
 
 > A stateful GenAI agent built with LangGraph + FastAPI. Uses a SQLite Knowledge Graph to accumulate structured facts and goals from every conversation, then builds a personalised context brief that guides each Gemini response via a CRAG self-reflection pipeline.
 
-**Live demo:** https://your-domain.com  
-**API docs:** https://your-domain.com/docs  
-**Telegram:** @AuroraAssistant_bot
-
 ---
 
 ## Architecture
@@ -22,42 +18,42 @@
 User Message
      │
      ▼
-┌──────────────────────────────────────────────────────┐
-│           LangGraph StateGraph (CRAG)                │
-│  ┌─────────────────────────────────────────────────┐ │
-│  │  extract_entities                               │ │
-│  │    └─ Gemini: extract facts/goals → update KG  │ │
-│  └───────────────────┬─────────────────────────────┘ │
-│                      │                               │
-│  ┌───────────────────▼─────────────────────────────┐ │
-│  │  retrieve_context                               │ │
-│  │    └─ KG traversal → markdown context brief    │ │
-│  └───────────────────┬─────────────────────────────┘ │
-│                      │                               │
-│  ┌───────────────────▼─────────────────────────────┐ │
-│  │  grade_context  (self-reflection evaluator)     │ │
-│  │    └─ Gemini: "Is context relevant?" YES/NO    │ │
-│  └──────┬─────────────────────────┬────────────────┘ │
-│    RELEVANT                  NOT RELEVANT            │
-│         │                        │                   │
-│  ┌──────▼──────┐         ┌───────▼──────┐           │
-│  │  generate   │         │  web_search  │           │
-│  │  (CoT/ReAct)│         │  DuckDuckGo  │           │
-│  └──────┬──────┘         └───────┬──────┘           │
-│         │                        │                   │
-│  ┌──────▼──────────────┐  ┌──────▼──────────────┐   │
-│  │ check_groundedness  │  │ generate_from_web   │   │
-│  │ "Is answer grounded │  │ (CoT + web context) │   │
-│  │  in context?" Y/N   │  └─────────────────────┘   │
-│  └──────┬──────────────┘                             │
-│    NOT GROUNDED → web_search                         │
-└──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│              LangGraph StateGraph (CRAG)                │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │  extract_entities                                │   │
+│  │    └─ Gemini: extract facts/goals → update KG   │   │
+│  └─────────────────────┬────────────────────────────┘   │
+│                        │                                │
+│  ┌─────────────────────▼────────────────────────────┐   │
+│  │  retrieve_context                                │   │
+│  │    └─ KG traversal → markdown context brief     │   │
+│  └─────────────────────┬────────────────────────────┘   │
+│                        │                                │
+│  ┌─────────────────────▼────────────────────────────┐   │
+│  │  grade_context  (self-reflection evaluator)      │   │
+│  │    └─ Gemini: "Is context relevant?" YES / NO   │   │
+│  └────────┬──────────────────────────┬──────────────┘   │
+│      RELEVANT                   NOT RELEVANT            │
+│           │                         │                   │
+│  ┌────────▼────────┐       ┌─────────▼───────────┐      │
+│  │    generate     │       │     web_search       │      │
+│  │   (CoT/ReAct)   │       │    (DuckDuckGo)      │      │
+│  └────────┬────────┘       └─────────┬───────────┘      │
+│           │                         │                   │
+│  ┌────────▼──────────────┐          │                   │
+│  │  check_groundedness   │          │                   │
+│  │  "Is answer grounded  │          │                   │
+│  │   in context?" Y / N  │          │                   │
+│  └────────┬──────────────┘          │                   │
+│      NOT GROUNDED ──────────► web_search                │
+└─────────────────────────────────────────────────────────┘
      │
      ▼
-SQLite (aurora.db)          checkpoints.db
-  kg_nodes / kg_edges   ←→  LangGraph SqliteSaver
-  chat_history               (persistent state per session)
-  llm_logs (strategy+MLflow)
+SQLite (aurora.db)              checkpoints.db
+  kg_nodes / kg_edges      ←→   LangGraph SqliteSaver
+  chat_history                   (state per session)
+  llm_logs (strategy + MLflow)
 ```
 
 ### Knowledge Graph Memory
@@ -112,8 +108,8 @@ Goals from two sources feed the same KG:
 
 ```bash
 # 1. Clone
-git clone https://github.com/Parth-Dhola/aurora.git
-cd aurora
+git clone https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory.git
+cd Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory
 
 # 2. Set up secrets
 cp .env.example .env
@@ -204,5 +200,3 @@ aurora/
 | `EC2_SSH_KEY` | Contents of your EC2 `.pem` key file |
 
 ---
-
-*Built by Parth Dhola — M.Tech Robotics & AI, IIT Guwahati*
