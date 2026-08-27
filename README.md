@@ -22,23 +22,23 @@ User Message
 │              LangGraph StateGraph (CRAG)                │
 │  ┌──────────────────────────────────────────────────┐   │
 │  │  extract_entities                                │   │
-│  │    └─ Gemini: extract facts/goals → update KG   │   │
+│  │    └─ Gemini: extract facts/goals → update KG    │   │
 │  └─────────────────────┬────────────────────────────┘   │
 │                        │                                │
 │  ┌─────────────────────▼────────────────────────────┐   │
 │  │  retrieve_context                                │   │
-│  │    └─ KG traversal → markdown context brief     │   │
+│  │    └─ KG traversal → markdown context brief      │   │
 │  └─────────────────────┬────────────────────────────┘   │
 │                        │                                │
 │  ┌─────────────────────▼────────────────────────────┐   │
 │  │  grade_context  (self-reflection evaluator)      │   │
-│  │    └─ Gemini: "Is context relevant?" YES / NO   │   │
+│  │    └─ Gemini: "Is context relevant?" YES / NO    │   │
 │  └────────┬──────────────────────────┬──────────────┘   │
 │      RELEVANT                   NOT RELEVANT            │
 │           │                         │                   │
 │  ┌────────▼────────┐       ┌─────────▼───────────┐      │
-│  │    generate     │       │     web_search       │      │
-│  │   (CoT/ReAct)   │       │    (DuckDuckGo)      │      │
+│  │    generate     │       │     web_search      │      │
+│  │   (CoT/ReAct)   │       │    (DuckDuckGo)     │      │
 │  └────────┬────────┘       └─────────┬───────────┘      │
 │           │                         │                   │
 │  ┌────────▼──────────────┐          │                   │
