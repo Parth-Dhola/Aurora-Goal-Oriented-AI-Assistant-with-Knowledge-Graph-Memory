@@ -1,12 +1,15 @@
 """
-Aurora Android App — Eye-Care Themes + WebSocket + Hybrid GraphRAG Document Upload
+Aurora Android App — Multi-Theme (Aurora Glow, Warm Paper, Soft Slate) + WebSocket + Hybrid GraphRAG Document Upload
 Run: python main.py
 Build APK: buildozer android debug
 """
 import os
+import sys
 import threading
 import json
 import requests
+from pathlib import Path
+
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
@@ -19,6 +22,7 @@ from kivy.uix.filechooser import FileChooserListView
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics import Color, RoundedRectangle
+from kivy.metrics import dp, sp
 
 try:
     from websocket import WebSocketApp
@@ -26,15 +30,69 @@ try:
 except ImportError:
     WS_AVAILABLE = False
 
-API_BASE   = "http://localhost:8000/api"
-WS_BASE    = "ws://localhost:8000/ws"
+# ── Config & Server URL Management ───────────────────────────────────────────
+CONFIG_FILE = Path(os.path.expanduser("~")) / ".aurora_app_config.json"
+DEFAULT_HOST = "http://localhost:8000"
+
+
+def load_config() -> dict:
+    try:
+        if CONFIG_FILE.exists():
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {"server_url": DEFAULT_HOST, "theme": "aurora"}
+
+
+def save_config(cfg: dict):
+    try:
+        CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[Config] Save error: {e}")
+
+
+_cfg = load_config()
+SERVER_URL = _cfg.get("server_url", DEFAULT_HOST).rstrip("/")
+
+
+def get_api_base() -> str:
+    return f"{SERVER_URL}/api"
+
+
+def get_ws_base() -> str:
+    ws_protocol = "wss" if SERVER_URL.startswith("https") else "ws"
+    host = SERVER_URL.split("://")[-1]
+    return f"{ws_protocol}://{host}/ws"
+
+
 SESSION_ID = "android-session"
 
-# ── Eye-Care Theme Palettes ───────────────────────────────────────────────────
+# ── Multi-Theme Palettes ──────────────────────────────────────────────────────
 THEMES = {
+    "aurora": {
+        "name": "🌌 Aurora Glow",
+        "window_bg":       (0.06, 0.08, 0.14, 1),    # Midnight indigo
+        "header_bg":       (0.09, 0.12, 0.20, 1),
+        "text_primary":    (0.88, 0.96, 1.0, 1),     # Glowing ice white
+        "text_secondary":  (0.42, 0.68, 0.78, 1),    # Aurora teal
+        "user_bubble_bg":  (0.12, 0.28, 0.40, 1),    # Deep luminous cyan
+        "user_bubble_fg":  (0.40, 0.95, 0.88, 1),
+        "ai_bubble_bg":    (0.10, 0.14, 0.23, 1),    # Midnight glass
+        "ai_bubble_fg":    (0.92, 0.96, 1.0, 1),
+        "input_bg":        (0.10, 0.14, 0.23, 1),
+        "input_fg":        (0.95, 0.98, 1.0, 1),
+        "input_border":    (0.18, 0.35, 0.45, 1),
+        "chip_bg":         (0.11, 0.16, 0.28, 1),    # Aurora chip
+        "chip_fg":         (0.35, 0.88, 0.72, 1),
+        "btn_primary":     (0.12, 0.82, 0.62, 1),    # Aurora emerald glow
+        "btn_primary_fg":  (0.04, 0.12, 0.10, 1),
+        "btn_secondary":   (0.28, 0.55, 0.95, 1),    # Electric violet/blue
+        "btn_grey":        (0.15, 0.20, 0.32, 1),
+        "btn_grey_fg":     (0.70, 0.85, 0.95, 1),
+    },
     "light": {
         "name": "☀️ Warm Paper",
-        "window_bg":       (0.96, 0.95, 0.93, 1),    # Soft warm paper cream
+        "window_bg":       (0.96, 0.95, 0.93, 1),    # Warm paper cream (eye-care)
         "header_bg":       (1.0, 1.0, 1.0, 1),
         "text_primary":    (0.13, 0.16, 0.22, 1),    # Deep charcoal
         "text_secondary":  (0.48, 0.53, 0.60, 1),    # Muted slate
@@ -44,14 +102,16 @@ THEMES = {
         "ai_bubble_fg":    (0.14, 0.17, 0.22, 1),
         "input_bg":        (1.0, 1.0, 1.0, 1),
         "input_fg":        (0.13, 0.16, 0.22, 1),
+        "input_border":    (0.85, 0.85, 0.82, 1),
         "chip_bg":         (0.90, 0.89, 0.86, 1),    # Warm linen
         "chip_fg":         (0.18, 0.24, 0.32, 1),
         "btn_primary":     (0.24, 0.48, 0.88, 1),    # Calming royal blue
+        "btn_primary_fg":  (1.0, 1.0, 1.0, 1),
         "btn_secondary":   (0.28, 0.64, 0.46, 1),    # Soft sage green
         "btn_grey":        (0.88, 0.87, 0.84, 1),
         "btn_grey_fg":     (0.25, 0.30, 0.38, 1),
     },
-    "dark": {
+    "slate": {
         "name": "🌙 Soft Slate",
         "window_bg":       (0.12, 0.14, 0.18, 1),    # Gentle slate charcoal
         "header_bg":       (0.16, 0.19, 0.25, 1),
@@ -63,50 +123,58 @@ THEMES = {
         "ai_bubble_fg":    (0.88, 0.91, 0.95, 1),
         "input_bg":        (0.18, 0.21, 0.28, 1),
         "input_fg":        (0.95, 0.95, 0.95, 1),
+        "input_border":    (0.25, 0.30, 0.38, 1),
         "chip_bg":         (0.22, 0.26, 0.35, 1),
         "chip_fg":         (0.85, 0.90, 0.98, 1),
         "btn_primary":     (0.26, 0.50, 0.90, 1),
+        "btn_primary_fg":  (1.0, 1.0, 1.0, 1),
         "btn_secondary":   (0.22, 0.60, 0.42, 1),
         "btn_grey":        (0.22, 0.26, 0.34, 1),
         "btn_grey_fg":     (0.85, 0.90, 0.96, 1),
     }
 }
 
-CURRENT_THEME = "light"
+CURRENT_THEME = _cfg.get("theme", "aurora")
+if CURRENT_THEME not in THEMES:
+    CURRENT_THEME = "aurora"
 Window.clearcolor = THEMES[CURRENT_THEME]["window_bg"]
 
 
 def api_post(endpoint, data, token=None):
-    url = f"{API_BASE}{endpoint}"
+    url = f"{get_api_base()}{endpoint}"
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        r = requests.post(url, json=data, headers=headers, timeout=30)
+        r = requests.post(url, json=data, headers=headers, timeout=15)
         return r.json()
     except requests.exceptions.ConnectionError:
-        return {"error": "Cannot connect. Check server IP and port."}
+        return {
+            "error": f"Cannot connect to {SERVER_URL}.\n"
+                     f"If you're on a phone, enter your computer's Wi-Fi IP (e.g. http://192.168.1.X:8000) in Server Settings above."
+        }
     except Exception as e:
         return {"error": str(e)}
 
 
 class ChatBubble(Label):
-    def __init__(self, text, is_user=False, theme_name="light", **kwargs):
+    def __init__(self, text, is_user=False, theme_name="aurora", **kwargs):
         super().__init__(**kwargs)
         self.text = text
         self.size_hint_y = None
-        self.text_size = (Window.width * 0.76, None)
+        self.text_size = (Window.width * 0.78, None)
         self.halign = "right" if is_user else "left"
         self.valign = "middle"
-        self.padding = (16, 12)
+        self.padding = (dp(16), dp(12))
+        self.font_size = sp(15)
         
-        t = THEMES.get(theme_name, THEMES["light"])
+        t = THEMES.get(theme_name, THEMES["aurora"])
         bg_col = t["user_bubble_bg"] if is_user else t["ai_bubble_bg"]
         self.color = t["user_bubble_fg"] if is_user else t["ai_bubble_fg"]
 
         with self.canvas.before:
             self.rect_color = Color(*bg_col)
-            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[12, 12, 12, 12])
+            self.rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(14)])
 
         self.bind(pos=self._update_rect, size=self._update_rect)
         self.bind(texture_size=self.setter("size"))
@@ -119,43 +187,159 @@ class ChatBubble(Label):
 class LoginScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation="vertical", padding=[40, 60, 40, 40], spacing=16)
-        
-        self.layout.add_widget(Label(text="🌟", font_size=52, size_hint_y=None, height=70))
-        self.title_lbl = Label(text="Aurora", font_size=34, bold=True,
-                               size_hint_y=None, height=50, color=THEMES["light"]["text_primary"])
-        self.sub_lbl = Label(text="Your personal AI assistant & Knowledge Graph", font_size=14,
-                             size_hint_y=None, height=30, color=THEMES["light"]["text_secondary"])
-        self.layout.add_widget(self.title_lbl)
-        self.layout.add_widget(self.sub_lbl)
-        self.layout.add_widget(Label(size_hint_y=None, height=20))
-
+        self.show_pwd = False
         t = THEMES[CURRENT_THEME]
-        self.username_input = TextInput(hint_text="Username", multiline=False,
-            size_hint_y=None, height=52, background_color=t["input_bg"],
-            foreground_color=t["input_fg"], padding=[14,14])
-        self.layout.add_widget(self.username_input)
 
-        self.password_input = TextInput(hint_text="Password", password=True,
-            multiline=False, size_hint_y=None, height=52, background_color=t["input_bg"],
-            foreground_color=t["input_fg"], padding=[14,14])
+        scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+        self.container = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            padding=[dp(28), dp(36), dp(28), dp(36)],
+            spacing=dp(14)
+        )
+        self.container.bind(minimum_height=self.container.setter("height"))
+
+        # App Logo & Branding
+        self.logo_lbl = Label(text="🌟", font_size=sp(48), size_hint_y=None, height=dp(58))
+        self.title_lbl = Label(
+            text="Aurora",
+            font_size=sp(32),
+            bold=True,
+            size_hint_y=None,
+            height=dp(42),
+            color=t["text_primary"]
+        )
+        self.sub_lbl = Label(
+            text="Goal-Oriented AI & Knowledge Graph",
+            font_size=sp(13),
+            size_hint_y=None,
+            height=dp(24),
+            color=t["text_secondary"]
+        )
+        self.container.add_widget(self.logo_lbl)
+        self.container.add_widget(self.title_lbl)
+        self.container.add_widget(self.sub_lbl)
+        self.container.add_widget(Label(size_hint_y=None, height=dp(10)))
+
+        # ── Server URL Settings Box ───────────────────────────────────────────
+        server_box = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(74), spacing=dp(4))
+        self.server_lbl = Label(
+            text="⚙️ Backend Server IP / URL:",
+            font_size=sp(12),
+            color=t["text_secondary"],
+            size_hint_y=None,
+            height=dp(18),
+            halign="left"
+        )
+        self.server_lbl.bind(size=self.server_lbl.setter("text_size"))
+        
+        self.server_input = TextInput(
+            text=SERVER_URL,
+            multiline=False,
+            font_size=sp(14),
+            size_hint_y=None,
+            height=dp(48),
+            background_color=t["input_bg"],
+            foreground_color=t["input_fg"],
+            padding=[dp(14), dp(12)],
+            hint_text="e.g. http://192.168.1.15:8000"
+        )
+        self.server_input.bind(text=self._on_server_url_change)
+        server_box.add_widget(self.server_lbl)
+        server_box.add_widget(self.server_input)
+        self.container.add_widget(server_box)
+
+        # ── Username Input ────────────────────────────────────────────────────
+        self.username_input = TextInput(
+            hint_text="Username",
+            multiline=False,
+            font_size=sp(16),
+            size_hint_y=None,
+            height=dp(54),
+            background_color=t["input_bg"],
+            foreground_color=t["input_fg"],
+            padding=[dp(16), dp(15)]
+        )
+        self.container.add_widget(self.username_input)
+
+        # ── Password Input with Show/Hide Eye Toggle ─────────────────────────
+        pwd_box = BoxLayout(size_hint_y=None, height=dp(54), spacing=dp(6))
+        self.password_input = TextInput(
+            hint_text="Password",
+            password=True,
+            multiline=False,
+            font_size=sp(16),
+            size_hint_x=0.82,
+            background_color=t["input_bg"],
+            foreground_color=t["input_fg"],
+            padding=[dp(16), dp(15)]
+        )
         self.password_input.bind(on_text_validate=self.login)
-        self.layout.add_widget(self.password_input)
 
-        self.status_label = Label(text="", size_hint_y=None, height=28,
-                                  color=(0.85, 0.3, 0.3, 1), font_size=13)
-        self.layout.add_widget(self.status_label)
+        self.eye_btn = Button(
+            text="👁️",
+            size_hint_x=0.18,
+            font_size=sp(20),
+            background_color=t["btn_grey"],
+            background_normal="",
+            color=t["btn_grey_fg"]
+        )
+        self.eye_btn.bind(on_press=self.toggle_show_password)
 
-        btn_row = BoxLayout(size_hint_y=None, height=52, spacing=12)
-        login_btn = Button(text="Login", background_color=t["btn_primary"], background_normal="", bold=True)
-        login_btn.bind(on_press=self.login)
-        reg_btn = Button(text="Register", background_color=t["btn_secondary"], background_normal="", bold=True)
-        reg_btn.bind(on_press=self.register)
-        btn_row.add_widget(login_btn)
-        btn_row.add_widget(reg_btn)
-        self.layout.add_widget(btn_row)
+        pwd_box.add_widget(self.password_input)
+        pwd_box.add_widget(self.eye_btn)
+        self.container.add_widget(pwd_box)
 
-        self.add_widget(self.layout)
+        # Status Label
+        self.status_label = Label(
+            text="",
+            size_hint_y=None,
+            height=dp(42),
+            color=(0.95, 0.4, 0.4, 1),
+            font_size=sp(13),
+            halign="center"
+        )
+        self.status_label.bind(size=self.status_label.setter("text_size"))
+        self.container.add_widget(self.status_label)
+
+        # Login / Register Action Buttons
+        btn_row = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(12))
+        self.login_btn = Button(
+            text="Login",
+            background_color=t["btn_primary"],
+            background_normal="",
+            bold=True,
+            font_size=sp(16),
+            color=t.get("btn_primary_fg", (1, 1, 1, 1))
+        )
+        self.login_btn.bind(on_press=self.login)
+
+        self.reg_btn = Button(
+            text="Register",
+            background_color=t["btn_secondary"],
+            background_normal="",
+            bold=True,
+            font_size=sp(16),
+            color=(1, 1, 1, 1)
+        )
+        self.reg_btn.bind(on_press=self.register)
+
+        btn_row.add_widget(self.login_btn)
+        btn_row.add_widget(self.reg_btn)
+        self.container.add_widget(btn_row)
+
+        scroll.add_widget(self.container)
+        self.add_widget(scroll)
+
+    def _on_server_url_change(self, instance, value):
+        global SERVER_URL
+        SERVER_URL = value.strip().rstrip("/")
+        save_config({"server_url": SERVER_URL, "theme": CURRENT_THEME})
+
+    def toggle_show_password(self, instance):
+        self.show_pwd = not self.show_pwd
+        self.password_input.password = not self.show_pwd
+        self.eye_btn.text = "🙈" if self.show_pwd else "👁️"
 
     def login(self, instance):
         threading.Thread(target=self._auth, args=("/auth/login",), daemon=True).start()
@@ -167,18 +351,20 @@ class LoginScreen(Screen):
         username = self.username_input.text.strip()
         password = self.password_input.text.strip()
         if not username or not password:
-            Clock.schedule_once(lambda dt: setattr(self.status_label,"text","Enter username and password"),0)
+            Clock.schedule_once(lambda dt: setattr(self.status_label, "text", "Please enter username & password"), 0)
             return
-        Clock.schedule_once(lambda dt: setattr(self.status_label,"text","Connecting..."),0)
+
+        Clock.schedule_once(lambda dt: setattr(self.status_label, "text", f"Connecting to {SERVER_URL}..."), 0)
         result = api_post(endpoint, {"username": username, "password": password})
         if "access_token" in result:
             app = App.get_running_app()
             app.token = result["access_token"]
             app.username = result["username"]
+            save_config({"server_url": SERVER_URL, "theme": CURRENT_THEME})
             Clock.schedule_once(lambda dt: self._go_to_chat(), 0)
         else:
-            error = result.get("detail", result.get("error","Authentication failed"))
-            Clock.schedule_once(lambda dt: setattr(self.status_label,"text",error),0)
+            error = result.get("detail", result.get("error", "Authentication failed"))
+            Clock.schedule_once(lambda dt: setattr(self.status_label, "text", error), 0)
 
     def _go_to_chat(self):
         chat = self.manager.get_screen("chat")
@@ -199,28 +385,49 @@ class ChatScreen(Screen):
         ("🗓️  Weekly review",    "Give me a weekly review of what I've accomplished."),
     ]
 
+    THEME_KEYS = ["aurora", "light", "slate"]
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.ws = None
         self.thinking_bubble = None
         self.theme_mode = CURRENT_THEME
-        self.bubbles = []
         t = THEMES[self.theme_mode]
 
         root = BoxLayout(orientation="vertical")
 
         # ── Header ────────────────────────────────────────────────────────────
-        header = BoxLayout(size_hint_y=None, height=56, padding=[16,8], spacing=8)
-        self.header_title = Label(text="Aurora", font_size=19, bold=True,
-                                  color=t["text_primary"], halign="left", size_hint_x=0.45)
-        self.conn_status = Label(text="⚪ Connecting...", font_size=12,
-                                 color=t["text_secondary"], halign="center", size_hint_x=0.30)
+        header = BoxLayout(size_hint_y=None, height=dp(56), padding=[dp(16), dp(8)], spacing=dp(8))
+        self.header_title = Label(
+            text="Aurora",
+            font_size=sp(19),
+            bold=True,
+            color=t["text_primary"],
+            halign="left",
+            size_hint_x=0.45
+        )
+        self.header_title.bind(size=self.header_title.setter("text_size"))
+
+        self.conn_status = Label(
+            text="⚪ Connecting...",
+            font_size=sp(12),
+            color=t["text_secondary"],
+            halign="center",
+            size_hint_x=0.25
+        )
         
         # Theme toggle button
-        self.theme_btn = Button(text="🌙 Theme", size_hint=(None, None), size=(90, 36),
-                                background_color=t["btn_grey"], background_normal="",
-                                color=t["btn_grey_fg"], font_size=12)
-        self.theme_btn.bind(on_press=self.toggle_theme)
+        self.theme_btn = Button(
+            text=t["name"].split()[0] + " Theme",
+            size_hint=(None, None),
+            size=(dp(104), dp(38)),
+            background_color=t["btn_grey"],
+            background_normal="",
+            color=t["btn_grey_fg"],
+            font_size=sp(12),
+            bold=True
+        )
+        self.theme_btn.bind(on_press=self.cycle_theme)
 
         header.add_widget(self.header_title)
         header.add_widget(self.conn_status)
@@ -228,30 +435,39 @@ class ChatScreen(Screen):
         root.add_widget(header)
 
         # ── Chat area ─────────────────────────────────────────────────────────
-        self.chat_layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=8, padding=[12,12])
+        self.chat_layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(10), padding=[dp(14), dp(12)])
         self.chat_layout.bind(minimum_height=self.chat_layout.setter("height"))
         self.scroll = ScrollView(size_hint_y=1)
         self.scroll.add_widget(self.chat_layout)
         root.add_widget(self.scroll)
 
         # ── Suggestion chips ──────────────────────────────────────────────────
-        chips_scroll = ScrollView(size_hint_y=None, height=46,
-                                  do_scroll_y=False, do_scroll_x=True,
-                                  bar_width=0)
-        self.chips_row = BoxLayout(orientation="horizontal", size_hint_x=None,
-                                   height=46, spacing=8, padding=[8, 5])
+        chips_scroll = ScrollView(
+            size_hint_y=None,
+            height=dp(48),
+            do_scroll_y=False,
+            do_scroll_x=True,
+            bar_width=0
+        )
+        self.chips_row = BoxLayout(
+            orientation="horizontal",
+            size_hint_x=None,
+            height=dp(48),
+            spacing=dp(8),
+            padding=[dp(8), dp(4)]
+        )
         self.chips_row.bind(minimum_width=self.chips_row.setter("width"))
         self.chip_buttons = []
         for label, message in self.SUGGESTIONS:
             chip = Button(
                 text=label,
                 size_hint=(None, None),
-                width=len(label) * 9 + 24,
-                height=36,
+                width=len(label) * dp(8) + dp(28),
+                height=dp(38),
                 background_color=t["chip_bg"],
                 background_normal="",
                 color=t["chip_fg"],
-                font_size=13,
+                font_size=sp(13),
             )
             chip.bind(on_press=self._make_chip_handler(message))
             self.chip_buttons.append(chip)
@@ -260,20 +476,37 @@ class ChatScreen(Screen):
         root.add_widget(chips_scroll)
 
         # ── Input row ─────────────────────────────────────────────────────────
-        input_row = BoxLayout(size_hint_y=None, height=60, padding=[8,6], spacing=6)
+        input_row = BoxLayout(size_hint_y=None, height=dp(64), padding=[dp(8), dp(6)], spacing=dp(6))
         
-        self.attach_btn = Button(text="📎", size_hint_x=0.14, font_size=20,
-                                 background_color=t["btn_grey"], background_normal="",
-                                 color=t["btn_grey_fg"])
+        self.attach_btn = Button(
+            text="📎",
+            size_hint_x=0.14,
+            font_size=sp(22),
+            background_color=t["btn_grey"],
+            background_normal="",
+            color=t["btn_grey_fg"]
+        )
         self.attach_btn.bind(on_press=self.open_file_picker)
 
-        self.text_input = TextInput(hint_text="Message Aurora...", multiline=False,
-            size_hint_x=0.72, background_color=t["input_bg"],
-            foreground_color=t["input_fg"], padding=[12,12])
+        self.text_input = TextInput(
+            hint_text="Message Aurora...",
+            multiline=False,
+            font_size=sp(16),
+            size_hint_x=0.72,
+            background_color=t["input_bg"],
+            foreground_color=t["input_fg"],
+            padding=[dp(14), dp(14)]
+        )
         self.text_input.bind(on_text_validate=self.send_message)
 
-        self.send_btn = Button(text="➤", size_hint_x=0.14, font_size=20,
-                               background_color=t["btn_primary"], background_normal="")
+        self.send_btn = Button(
+            text="➤",
+            size_hint_x=0.14,
+            font_size=sp(22),
+            background_color=t["btn_primary"],
+            background_normal="",
+            color=t.get("btn_primary_fg", (1, 1, 1, 1))
+        )
         self.send_btn.bind(on_press=self.send_message)
 
         input_row.add_widget(self.attach_btn)
@@ -282,15 +515,20 @@ class ChatScreen(Screen):
         root.add_widget(input_row)
         self.add_widget(root)
 
-    def toggle_theme(self, instance=None):
-        """Toggle between Eye-Care Warm Paper (Light) and Eye-Care Slate (Dark)."""
-        self.theme_mode = "dark" if self.theme_mode == "light" else "light"
+    def cycle_theme(self, instance=None):
+        """Cycle through: 🌌 Aurora Glow -> ☀️ Warm Paper -> 🌙 Soft Slate."""
+        idx = self.THEME_KEYS.index(self.theme_mode)
+        self.theme_mode = self.THEME_KEYS[(idx + 1) % len(self.THEME_KEYS)]
+        global CURRENT_THEME
+        CURRENT_THEME = self.theme_mode
+        save_config({"server_url": SERVER_URL, "theme": CURRENT_THEME})
+
         t = THEMES[self.theme_mode]
         Window.clearcolor = t["window_bg"]
         
         self.header_title.color = t["text_primary"]
         self.conn_status.color = t["text_secondary"]
-        self.theme_btn.text = "☀️ Light" if self.theme_mode == "dark" else "🌙 Dark"
+        self.theme_btn.text = t["name"].split()[0] + " Theme"
         self.theme_btn.background_color = t["btn_grey"]
         self.theme_btn.color = t["btn_grey_fg"]
 
@@ -299,6 +537,7 @@ class ChatScreen(Screen):
         self.text_input.background_color = t["input_bg"]
         self.text_input.foreground_color = t["input_fg"]
         self.send_btn.background_color = t["btn_primary"]
+        self.send_btn.color = t.get("btn_primary_fg", (1, 1, 1, 1))
 
         for chip in self.chip_buttons:
             chip.background_color = t["chip_bg"]
@@ -311,18 +550,31 @@ class ChatScreen(Screen):
         return handler
 
     def open_file_picker(self, instance):
-        """Open an eye-friendly file chooser popup to upload PDF / TXT study materials."""
+        """Open a file chooser popup to upload PDF / TXT study materials."""
         t = THEMES[self.theme_mode]
-        content = BoxLayout(orientation="vertical", spacing=10, padding=10)
+        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(10))
         filechooser = FileChooserListView(
             path=os.path.expanduser("~"),
             filters=["*.pdf", "*.txt", "*.PDF", "*.TXT"]
         )
         content.add_widget(filechooser)
 
-        btn_bar = BoxLayout(size_hint_y=None, height=44, spacing=10)
-        cancel_btn = Button(text="Cancel", background_color=t["btn_grey"], background_normal="", color=t["btn_grey_fg"])
-        upload_btn = Button(text="Upload to KG 🚀", background_color=t["btn_primary"], background_normal="", bold=True)
+        btn_bar = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(10))
+        cancel_btn = Button(
+            text="Cancel",
+            background_color=t["btn_grey"],
+            background_normal="",
+            color=t["btn_grey_fg"],
+            font_size=sp(14)
+        )
+        upload_btn = Button(
+            text="Upload to KG 🚀",
+            background_color=t["btn_primary"],
+            background_normal="",
+            color=t.get("btn_primary_fg", (1, 1, 1, 1)),
+            bold=True,
+            font_size=sp(14)
+        )
 
         popup = Popup(
             title="Select Study PDF or Notes",
@@ -358,7 +610,7 @@ class ChatScreen(Screen):
                     file_bytes = f.read()
                 files = {"file": (filename, file_bytes, "application/pdf" if filename.lower().endswith(".pdf") else "text/plain")}
                 r = requests.post(
-                    f"{API_BASE}/documents/upload",
+                    f"{get_api_base()}/documents/upload",
                     files=files,
                     headers={"Authorization": f"Bearer {app.token}"},
                     timeout=60
@@ -388,47 +640,51 @@ class ChatScreen(Screen):
             self.add_bubble("Install websocket-client: pip install websocket-client", False)
             return
         app = App.get_running_app()
-        url = f"{WS_BASE}/chat?token={app.token}"
-        self.ws = WebSocketApp(url,
-            on_open=self._ws_open, on_message=self._ws_message,
-            on_error=self._ws_error, on_close=self._ws_close)
+        url = f"{get_ws_base()}/chat?token={app.token}"
+        self.ws = WebSocketApp(
+            url,
+            on_open=self._ws_open,
+            on_message=self._ws_message,
+            on_error=self._ws_error,
+            on_close=self._ws_close
+        )
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def _ws_open(self, ws):
-        Clock.schedule_once(lambda dt: setattr(self.conn_status,"text","🟢 Connected"),0)
+        Clock.schedule_once(lambda dt: setattr(self.conn_status, "text", "🟢 Connected"), 0)
 
     def _ws_message(self, ws, raw):
         try:
             data = json.loads(raw)
             t = data.get("type")
             if t == "connected":
-                Clock.schedule_once(lambda dt: self.add_bubble("✅ Connected! Ask me anything.",False),0)
+                Clock.schedule_once(lambda dt: self.add_bubble("✅ Connected! Ask me anything.", False), 0)
             elif t == "thinking":
-                Clock.schedule_once(lambda dt: self._show_thinking(),0)
+                Clock.schedule_once(lambda dt: self._show_thinking(), 0)
             elif t == "message":
-                reply = data.get("reply","")
-                Clock.schedule_once(lambda dt: self._show_reply(reply),0)
+                reply = data.get("reply", "")
+                Clock.schedule_once(lambda dt: self._show_reply(reply), 0)
             elif t == "error":
-                detail = data.get("detail","Unknown error")
-                Clock.schedule_once(lambda dt: self._show_reply(f"⚠️ {detail}"),0)
+                detail = data.get("detail", "Unknown error")
+                Clock.schedule_once(lambda dt: self._show_reply(f"⚠️ {detail}"), 0)
         except Exception as e:
             print(f"[WS] Parse error: {e}")
 
     def _ws_error(self, ws, error):
-        Clock.schedule_once(lambda dt: setattr(self.conn_status,"text","🔴 Error"),0)
+        Clock.schedule_once(lambda dt: setattr(self.conn_status, "text", "🔴 Error"), 0)
 
     def _ws_close(self, ws, code, msg):
-        Clock.schedule_once(lambda dt: setattr(self.conn_status,"text","⚪ Disconnected"),0)
+        Clock.schedule_once(lambda dt: setattr(self.conn_status, "text", "⚪ Disconnected"), 0)
 
     def add_bubble(self, text, is_user):
         bubble = ChatBubble(text=text, is_user=is_user, theme_name=self.theme_mode)
         self.chat_layout.add_widget(bubble)
-        Clock.schedule_once(lambda dt: setattr(self.scroll,"scroll_y",0),0.1)
+        Clock.schedule_once(lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1)
 
     def _show_thinking(self):
         self.thinking_bubble = ChatBubble(text="Aurora is thinking... 💭", is_user=False, theme_name=self.theme_mode)
         self.chat_layout.add_widget(self.thinking_bubble)
-        Clock.schedule_once(lambda dt: setattr(self.scroll,"scroll_y",0),0.1)
+        Clock.schedule_once(lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1)
 
     def _show_reply(self, reply):
         if self.thinking_bubble and self.thinking_bubble.parent:
