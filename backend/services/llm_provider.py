@@ -169,18 +169,28 @@ def get_available_llm_options() -> list:
 
     # Check if local LLM is currently active or alive on network
     local_url = os.getenv("LOCAL_LLM_URL", "")
-    local_model = os.getenv("LOCAL_LLM_MODEL", "qwen3.5-2b")
+    local_models = []
     local_configured = False
     if local_url:
-        if curr["provider"] in ("local", "ollama", "lmstudio", "vllm"):
-            local_configured = True
-        else:
-            try:
-                import requests
-                r = requests.get(f"{local_url}/models", timeout=0.25)
-                local_configured = (r.status_code == 200)
-            except Exception:
-                local_configured = False
+        try:
+            import requests
+            r = requests.get(f"{local_url}/models", timeout=0.3)
+            if r.status_code == 200:
+                local_configured = True
+                data = r.json()
+                if "data" in data and isinstance(data["data"], list):
+                    local_models = [m["id"] for m in data["data"] if "id" in m]
+                elif "models" in data and isinstance(data["models"], list):
+                    local_models = [m.get("name", m.get("id", "")) for m in data["models"]]
+        except Exception:
+            if curr["provider"] in ("local", "ollama", "lmstudio", "vllm"):
+                local_configured = True
+
+    if not local_models:
+        local_model_default = os.getenv("LOCAL_LLM_MODEL", "qwen3.5-2b")
+        local_models = [local_model_default, "llama3.2", "mistral", "deepseek-r1"]
+    else:
+        local_model_default = local_models[0]
 
     options = [
         {
@@ -194,8 +204,8 @@ def get_available_llm_options() -> list:
         {
             "id": "local",
             "name": "Local LLM",
-            "default_model": local_model,
-            "models": [local_model, "llama3.2", "mistral", "deepseek-r1"],
+            "default_model": local_model_default,
+            "models": local_models,
             "configured": local_configured,
             "active": curr["provider"] in ("local", "ollama", "lmstudio", "vllm")
         },

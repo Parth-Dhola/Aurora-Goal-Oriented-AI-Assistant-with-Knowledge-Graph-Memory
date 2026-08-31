@@ -206,11 +206,11 @@ class ChatScreen(Screen):
         
         self.attach_btn = IconButton(
             icon_name="doc",
-            text="DOC",
+            text="ATTACH",
             bg_color=t["btn_grey"],
             fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(84), dp(48)),
+            size=(dp(96), dp(48)),
             pos_hint={"center_y": 0.5}
         )
         self.attach_btn.bind(on_press=self.open_file_picker)
