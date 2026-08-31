@@ -21,39 +21,77 @@ Aurora consists of:
 Rather than blindly answering questions, Aurora evaluates its own retrieved context before generating a response:
 
 ```
-User Message
-     │
-     ▼
-┌─────────────────────────────────────────────────────────┐
-│              LangGraph StateGraph (CRAG)                │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │  extract_entities                                │   │
-│  │    └─ Gemini: extract facts/goals → update KG   │   │
-│  └─────────────────────┬────────────────────────────┘   │
-│                        │                                │
-│  ┌─────────────────────▼────────────────────────────┐   │
-│  │  retrieve_context (Hybrid GraphRAG)              │   │
-│  │    └─ KG traversal + Document chunks → brief    │   │
-│  └─────────────────────┬────────────────────────────┘   │
-│                        │                                │
-│  ┌─────────────────────▼────────────────────────────┐   │
-│  │  grade_context  (self-reflection evaluator)      │   │
-│  │    └─ Gemini: "Is context relevant?" YES / NO   │   │
-│  └────────┬──────────────────────────┬──────────────┘   │
-│      RELEVANT                   NOT RELEVANT            │
-│           │                         │                   │
-│  ┌────────▼────────┐       ┌─────────▼───────────┐      │
-│  │    generate     │       │     web_search       │      │
-│  │   (CoT/ReAct)   │       │    (DuckDuckGo)      │      │
-│  └────────┬────────┘       └─────────┬───────────┘      │
-│           │                         │                   │
-│  ┌────────▼──────────────┐          │                   │
-│  │  check_groundedness   │          │                   │
-│  │  "Is answer grounded  │          │                   │
-│  │   in context?" Y / N  │          │                   │
-│  └────────┬──────────────┘          │                   │
-│      NOT GROUNDED ──────────► web_search                │
-└─────────────────────────────────────────────────────────┘
+                                ┌──────────────────────┐
+                                │     User Message     │
+                                └──────────┬───────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        LangGraph Corrective RAG (CRAG) Agent                           │
+│                                                                                        │
+│   ┌───────────────────────┐                                                            │
+│   │ 1. extract_entities   │ ──► Gemini: extract facts/goals/weaknesses ──► SQLite KG   │
+│   └──────────┬────────────┘                                                            │
+│              │                                                                         │
+│              ▼                                                                         │
+│   ┌───────────────────────┐                                                            │
+│   │ 2. retrieve_context   │ ◄── Traverses Personal KG & FTS5 Document Knowledge Base   │
+│   └──────────┬────────────┘                                                            │
+│              │                                                                         │
+│              ▼                                                                         │
+│   ┌───────────────────────┐                                                            │
+│   │ 3. grade_context      │ ──► Gemini Self-Reflection: "Is context relevant?"         │
+│   └──────────┬────────────┘                                                            │
+│              │                                                                         │
+│       ┌──────┴──────────────┐                                                          │
+│   [Relevant]          [Not Relevant]                                                   │
+│       │                     │                                                          │
+│       ▼                     ▼                                                          │
+│   ┌───────────────┐     ┌───────────────────────┐                                      │
+│   │ 4. generate   │     │ 6. web_search         │ ◄── DuckDuckGo Search                │
+│   │  (CoT/ReAct)  │     │    (Live fallback)    │                                      │
+│   └───────┬───────┘     └───────────┬───────────┘                                      │
+│           │                         │                                                  │
+│           ▼                         │                                                  │
+│   ┌───────────────────────┐         │                                                  │
+│   │ 5. check_groundedness │         │                                                  │
+│   │  (Fact-check filter)  │         │                                                  │
+│   └───────┬───────────────┘         │                                                  │
+│           │                         │                                                  │
+│   [Not Grounded] ───────────────────┘                                                  │
+│           │                                                                            │
+│       [Grounded]                                                                       │
+│           │                                                                            │
+│           ▼                                                                            │
+│   ┌───────────────────────┐                                                            │
+│   │ Final Actionable Plan │                                                            │
+│   └───────────────────────┘                                                            │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                            Multi-Channel Interface & Storage                           │
+│                                                                                        │
+│  ┌───────────────────────┐   ┌───────────────────────┐   ┌──────────────────────────┐  │
+│  │   Android App (Kivy)  │   │  Telegram Bot (v20+)  │   │  FastAPI REST / WS API   │  │
+│  │  3 Themes + PDF Attach│   │  /docs, /plan, /goals │   │  Swagger Docs & Auth     │  │
+│  └───────────────────────┘   └───────────────────────┘   └──────────────────────────┘  │
+│                                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────────────────────┐  │
+│  │ SQLite Database (aurora.db)                                                      │  │
+│  │ ├─ kg_nodes & kg_edges (Personal Knowledge Graph & Study Material)              │  │
+│  │ ├─ documents & document_chunks (Hybrid GraphRAG Full-Text Search)                │  │
+│  │ ├─ checkpoints.db (LangGraph Session State Checkpointer)                         │  │
+│  │ └─ llm_logs (MLflow Experiment Tracking & Strategy Auditing)                     │  │
+│  └──────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────────────────────┐  │
+│  │ Interactive Obsidian Vault (obsidian-KG-vault/)                                  │  │
+│  │ ├─ _Overview.md (Master Knowledge Graph & Dataview Dashboard)                    │  │
+│  │ ├─ Goals/ & Topics/ (Interlinked [[wikilinks]])                                  │  │
+│  │ └─ Documents/ (Deep Topic Notes with LaTeX & Complexity Formulations)            │  │
+│  └──────────────────────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 1. **`extract_entities`**: Automatically detects user facts, learning weaknesses, and casual goals from conversation and persists them to the Knowledge Graph.
