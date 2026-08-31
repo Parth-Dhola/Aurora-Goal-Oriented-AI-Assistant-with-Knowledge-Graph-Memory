@@ -27,9 +27,8 @@ This document serves as the comprehensive engineering guide and operator manual 
 ## 1. Core Architectural Philosophy
 
 ### Why Knowledge Graphs instead of Pure Vector DBs?
-Standard RAG architectures store text chunks in vector databases (e.g. Pinecone, Chroma, FAISS) and retrieve the top-$k$ nearest neighbors via cosine similarity. While effective for static semantic search, flat vector retrieval suffers from two critical flaws in personalized goal tracking:
 1. **Lack of Relational Reasoning**: A vector database cannot distinguish between *"I am studying Dynamic Programming"*, *"I struggle with Dynamic Programming"*, and *"I completed Dynamic Programming"*. They produce virtually identical embedding vectors.
-2. **Temporal & Dependency Blindness**: Vector search cannot follow structured prerequisite chains (e.g., `Recursion` $\rightarrow$ `Memoization` $\rightarrow$ `Dynamic Programming`).
+2. **Temporal & Dependency Blindness**: Vector search cannot follow structured prerequisite chains (e.g., `Recursion` → `Memoization` → `Dynamic Programming`).
 
 Aurora solves this by combining **Knowledge Graph Memory** (`kg_nodes` and `kg_edges` with relationship types and edge weights) with **Full-Text Document Retrieval (FTS5)**.
 
@@ -104,8 +103,8 @@ The graph is persisted directly in SQLite (`aurora.db`):
 - **`kg_edges`**: `source_id`, `target_id`, `relation_type` (`PREREQUISITE_FOR`, `PART_OF`, `STRUGGLING_WITH`, `COMPLETED`, `REFERENCES`), `weight` (0.0 to 1.0), `properties` (JSON).
 
 #### Dynamic Weight Decay & Reinforcement:
-- Every time a user mentions completing or reviewing a topic, the edge weight is reinforced ($w \leftarrow \min(1.0, w + 0.15)$).
-- Dormant goals decay gracefully over time ($w \leftarrow \max(0.1, w \times 0.95)$ per week of inactivity).
+- Every time a user mentions completing or reviewing a topic, the edge weight is reinforced: `w = min(1.0, w + 0.15)`.
+- Dormant goals decay gracefully over time: `w = max(0.1, w * 0.95)` per week of inactivity.
 
 ---
 
@@ -217,7 +216,7 @@ python main.py
 
 ### Compiling Android APK:
 1. Push code to GitHub.
-2. In GitHub Actions, select **Build Android APK** $\rightarrow$ **Run workflow**.
+2. In GitHub Actions, select **Build Android APK** → **Run workflow**.
 3. Download the compiled `.apk` from the workflow Artifacts.
 
 ---
@@ -245,7 +244,7 @@ python bot.py
 ## 6. Obsidian Vault Knowledge Graph Visualization
 
 Aurora synchronizes directly with Obsidian:
-1. Open Obsidian $\rightarrow$ **Open folder as vault** $\rightarrow$ Select `obsidian-KG-vault/`.
+1. Open Obsidian → **Open folder as vault** → Select `obsidian-KG-vault/`.
 2. Install the **Dataview** community plugin.
 3. Open `_Overview.md` to see:
    - Live Goal Tracker with Progress Bars
