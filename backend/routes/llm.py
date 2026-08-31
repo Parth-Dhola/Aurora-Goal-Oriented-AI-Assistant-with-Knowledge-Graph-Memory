@@ -45,3 +45,4 @@ async def switch_llm(req: LLMSwitchRequest, user: dict = Depends(get_current_use
         "message": f"Switched to {updated['provider']} ({updated['model']})",
         "current": updated
     }
+

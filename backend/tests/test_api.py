@@ -299,3 +299,26 @@ def test_upload_invalid_file_type(auth_client):
     files = {"file": ("script.py", b"print('hello')", "text/x-python")}
     r = client.post("/api/documents/upload", files=files, headers=H(token))
     assert r.status_code == 400
+
+
+def test_get_llm_status(auth_client):
+    client, token = auth_client
+    r = client.get("/api/llm/", headers=H(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert "current" in data
+    assert "options" in data
+    assert len(data["options"]) >= 4
+
+
+def test_switch_llm_provider(auth_client):
+    client, token = auth_client
+    r = client.post(
+        "/api/llm/switch",
+        json={"provider": "gemini", "model": "gemini-3.1-flash-lite"},
+        headers=H(token)
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "success"
+    assert data["current"]["provider"] == "gemini"

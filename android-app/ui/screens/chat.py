@@ -11,9 +11,11 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
+from kivy.uix.widget import Widget
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.graphics import Color, Ellipse
 from kivy.metrics import dp, sp
 
 try:
@@ -29,17 +31,42 @@ from ui.components.bubble import ChatBubble
 from ui.components.file_picker import DocumentPickerDialog
 
 
+class StatusDot(Widget):
+    """Vector-rendered OpenGL connection indicator dot (100% font-independent)."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.size_hint = (None, None)
+        self.size = (dp(16), dp(16))
+        with self.canvas:
+            self.color_inst = Color(0.95, 0.78, 0.20, 1) # Amber (Connecting)
+            self.circle = Ellipse(pos=self.pos, size=(dp(10), dp(10)))
+        self.bind(pos=self._update, size=self._update)
+
+    def _update(self, *args):
+        self.circle.pos = (self.x + (self.width - dp(10)) / 2, self.y + (self.height - dp(10)) / 2)
+        self.circle.size = (dp(10), dp(10))
+
+    def set_connected(self):
+        self.color_inst.rgba = (0.18, 0.88, 0.44, 1) # Green
+
+    def set_connecting(self):
+        self.color_inst.rgba = (0.95, 0.78, 0.20, 1) # Amber
+
+    def set_disconnected(self):
+        self.color_inst.rgba = (0.95, 0.30, 0.30, 1) # Red
+
+
 class ChatScreen(Screen):
 
     SUGGESTIONS = [
-        ("🎯 Plan Day",       "Plan my day. What should I focus on given my current goals?"),
-        ("⚡ My Goals",       "What are my current goals and how am I doing on each?"),
-        ("📚 Study Notes",    "Summarize the key concepts from my uploaded notes."),
-        ("📈 Progress",       "Give me a progress summary across all my goals."),
-        ("💡 What to Study?", "What should I study or work on today?"),
-        ("🔥 Motivate Me",    "Give me a short motivational push for today."),
-        ("🔍 Weak Areas",     "What are my weakest areas that I should improve?"),
-        ("🗓 Weekly Review",  "Give me a weekly review of what I've accomplished."),
+        ("Plan Day",       "Plan my day. What should I focus on given my current goals?"),
+        ("My Goals",       "What are my current goals and how am I doing on each?"),
+        ("Study Notes",    "Summarize the key concepts from my uploaded notes."),
+        ("Progress",       "Give me a progress summary across all my goals."),
+        ("What to Study?", "What should I study or work on today?"),
+        ("Motivate Me",    "Give me a short motivational push for today."),
+        ("Weak Areas",     "What are my weakest areas that I should improve?"),
+        ("Weekly Review",  "Give me a weekly review of what I've accomplished."),
     ]
 
     THEME_KEYS = ["aurora", "light", "slate"]
@@ -49,7 +76,7 @@ class ChatScreen(Screen):
         self.ws = None
         self.thinking_bubble = None
         self.theme_mode = CURRENT_THEME
-        self.active_llm = "local"
+        self.active_llm = "LOCAL"
         t = THEMES[self.theme_mode]
 
         self.root_layout = BoxLayout(orientation="vertical")
@@ -62,17 +89,10 @@ class ChatScreen(Screen):
             spacing=dp(8)
         )
 
-        # Connection Status Glowing Dot
-        self.status_dot = Label(
-            text="●",
-            font_size=sp(20),
-            color=(0.95, 0.78, 0.20, 1), # Amber (Connecting)
-            size_hint=(None, None),
-            size=(dp(24), dp(40)),
-            halign="center",
-            valign="middle"
-        )
-        self.status_dot.bind(size=self.status_dot.setter("text_size"))
+        # OpenGL Canvas Status Dot Container
+        dot_box = BoxLayout(size_hint=(None, 1), width=dp(20))
+        self.status_dot = StatusDot()
+        dot_box.add_widget(self.status_dot)
 
         self.header_title = Label(
             text="Aurora",
@@ -81,37 +101,37 @@ class ChatScreen(Screen):
             color=t["text_primary"],
             halign="left",
             valign="middle",
-            size_hint_x=0.38
+            size_hint_x=0.35
         )
         self.header_title.bind(size=self.header_title.setter("text_size"))
 
         # LLM Switcher Button
         self.model_btn = Button(
-            text="⚡ LOCAL",
+            text="[ LOCAL ]",
             size_hint=(None, None),
-            size=(dp(92), dp(38)),
+            size=(dp(96), dp(38)),
             background_color=t["btn_grey"],
             background_normal="",
             color=t["btn_grey_fg"],
-            font_size=sp(11),
+            font_size=sp(12),
             bold=True
         )
         self.model_btn.bind(on_press=self.open_model_picker)
 
-        # Theme icon toggle button (◈ / ☼ / ☾)
+        # Theme toggle button
         self.theme_btn = Button(
-            text=t["symbol"],
+            text=f"[ {t['name'].upper()} ]",
             size_hint=(None, None),
-            size=(dp(42), dp(38)),
+            size=(dp(96), dp(38)),
             background_color=t["btn_grey"],
             background_normal="",
             color=t["btn_grey_fg"],
-            font_size=sp(16),
+            font_size=sp(12),
             bold=True
         )
         self.theme_btn.bind(on_press=self.cycle_theme)
 
-        header.add_widget(self.status_dot)
+        header.add_widget(dot_box)
         header.add_widget(self.header_title)
         header.add_widget(self.model_btn)
         header.add_widget(self.theme_btn)
@@ -145,7 +165,7 @@ class ChatScreen(Screen):
             chip = Button(
                 text=label,
                 size_hint=(None, None),
-                width=len(label) * dp(7) + dp(38),
+                width=len(label) * dp(8) + dp(32),
                 height=dp(38),
                 background_color=t["chip_bg"],
                 background_normal="",
@@ -185,9 +205,9 @@ class ChatScreen(Screen):
         self.text_input.bind(on_text_validate=self.send_message)
 
         self.send_btn = Button(
-            text="➤ SEND",
+            text="SEND",
             size_hint_x=0.18,
-            font_size=sp(12),
+            font_size=sp(13),
             bold=True,
             background_color=t["btn_primary"],
             background_normal="",
@@ -216,7 +236,7 @@ class ChatScreen(Screen):
             Clock.schedule_once(lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1)
 
     def cycle_theme(self, instance=None):
-        """Cycle through: [ Aurora ◈ ] -> [ Paper ☼ ] -> [ Slate ☾ ]."""
+        """Cycle through: [ AURORA ] -> [ PAPER ] -> [ SLATE ]."""
         idx = self.THEME_KEYS.index(self.theme_mode)
         self.theme_mode = self.THEME_KEYS[(idx + 1) % len(self.THEME_KEYS)]
         set_theme(self.theme_mode)
@@ -225,7 +245,7 @@ class ChatScreen(Screen):
         Window.clearcolor = t["window_bg"]
         
         self.header_title.color = t["text_primary"]
-        self.theme_btn.text = t["symbol"]
+        self.theme_btn.text = f"[ {t['name'].upper()} ]"
         self.theme_btn.background_color = t["btn_grey"]
         self.theme_btn.color = t["btn_grey_fg"]
 
@@ -249,7 +269,7 @@ class ChatScreen(Screen):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
 
         title = Label(
-            text="Select Active AI Model",
+            text="Select Active AI Brain",
             font_size=sp(16),
             bold=True,
             size_hint_y=None,
@@ -259,11 +279,11 @@ class ChatScreen(Screen):
         content.add_widget(title)
 
         models = [
-            ("⚡ Local LLM (qwen3.5-2b)", "local", "qwen3.5-2b"),
-            ("🤖 Google Gemini (Flash Lite)", "gemini", "gemini-3.1-flash-lite"),
-            ("🚀 Groq (Llama-3.3-70B)", "groq", "llama-3.3-70b-versatile"),
-            ("🧠 OpenAI (GPT-4o-mini)", "openai", "gpt-4o-mini"),
-            ("🎭 Anthropic (Claude 3.5 Sonnet)", "anthropic", "claude-3-5-sonnet-20241022"),
+            ("Local LLM (qwen3.5-2b)", "local", "qwen3.5-2b"),
+            ("Google Gemini (Flash Lite)", "gemini", "gemini-3.1-flash-lite"),
+            ("Groq (Llama-3.3-70B)", "groq", "llama-3.3-70b-versatile"),
+            ("OpenAI (GPT-4o-mini)", "openai", "gpt-4o-mini"),
+            ("Anthropic (Claude 3.5 Sonnet)", "anthropic", "claude-3-5-sonnet-20241022"),
         ]
 
         popup = Popup(
@@ -275,7 +295,8 @@ class ChatScreen(Screen):
 
         def switch_to(provider, model_name, label_text):
             popup.dismiss()
-            self.model_btn.text = "⚡ LOCAL" if provider == "local" else f"🤖 {provider.upper()[:6]}"
+            self.active_llm = provider.upper()
+            self.model_btn.text = f"[ {provider.upper()[:6]} ]"
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
             def _worker():
@@ -295,9 +316,9 @@ class ChatScreen(Screen):
                 text=label_text,
                 size_hint_y=None,
                 height=dp(44),
-                background_color=t["btn_primary"] if prov == self.active_llm else t["chip_bg"],
+                background_color=t["btn_primary"] if prov.upper() == self.active_llm else t["chip_bg"],
                 background_normal="",
-                color=(1, 1, 1, 1) if prov == self.active_llm else t["chip_fg"],
+                color=(1, 1, 1, 1) if prov.upper() == self.active_llm else t["chip_fg"],
                 font_size=sp(13),
                 bold=True
             )
@@ -363,6 +384,7 @@ class ChatScreen(Screen):
             return
         app = App.get_running_app()
         url = f"{get_ws_base()}/chat?token={app.token}"
+        self.status_dot.set_connecting()
         self.ws = WebSocketApp(
             url,
             on_open=self._ws_open,
@@ -373,7 +395,7 @@ class ChatScreen(Screen):
         threading.Thread(target=self.ws.run_forever, daemon=True).start()
 
     def _ws_open(self, ws):
-        Clock.schedule_once(lambda dt: setattr(self.status_dot, "color", (0.18, 0.88, 0.44, 1)), 0) # Green dot
+        Clock.schedule_once(lambda dt: self.status_dot.set_connected(), 0)
 
     def _ws_message(self, ws, raw):
         try:
@@ -393,10 +415,10 @@ class ChatScreen(Screen):
             print(f"[WS] Parse error: {e}")
 
     def _ws_error(self, ws, error):
-        Clock.schedule_once(lambda dt: setattr(self.status_dot, "color", (0.95, 0.30, 0.30, 1)), 0) # Red dot
+        Clock.schedule_once(lambda dt: self.status_dot.set_disconnected(), 0)
 
     def _ws_close(self, ws, code, msg):
-        Clock.schedule_once(lambda dt: setattr(self.status_dot, "color", (0.65, 0.65, 0.65, 1)), 0) # Grey dot
+        Clock.schedule_once(lambda dt: self.status_dot.set_disconnected(), 0)
 
     def add_bubble(self, text: str, is_user: bool = False):
         bubble = ChatBubble(text=text, is_user=is_user, theme_name=self.theme_mode)

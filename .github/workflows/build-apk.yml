@@ -2,11 +2,6 @@ name: Build Android APK
 
 on:
   workflow_dispatch: # Allows 1-click manual trigger from GitHub Actions tab
-  push:
-    branches: [main]
-    paths:
-      - 'android-app/**'
-      - '.github/workflows/build-apk.yml'
 
 jobs:
   build:
