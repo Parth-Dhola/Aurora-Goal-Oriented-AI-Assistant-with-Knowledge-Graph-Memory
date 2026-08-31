@@ -300,6 +300,18 @@ class ChatScreen(Screen):
     def open_model_picker(self, instance):
         """Open popup displaying ONLY available/configured LLM options."""
         t = THEMES[self.theme_mode]
+        app = App.get_running_app()
+
+        # Retrieve fresh options from server
+        try:
+            res = api_get("/llm/", token=app.token)
+            if "options" in res:
+                self.available_options = res.get("options", [])
+            if "current" in res:
+                self.active_llm = res["current"].get("provider", "gemini").lower()
+        except Exception:
+            pass
+
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
 
         title = Label(
@@ -327,7 +339,6 @@ class ChatScreen(Screen):
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
             def _worker():
-                app = App.get_running_app()
                 res = api_post("/llm/switch", {"provider": provider, "model": model_name}, token=app.token)
                 if res.get("status") == "success":
                     msg = f"AI switched to {provider.upper()} ({model_name})! Knowledge Graph and chat will now use this model."
@@ -341,7 +352,6 @@ class ChatScreen(Screen):
         # Show only configured options
         configured_models = [opt for opt in self.available_options if opt.get("configured")]
         if not configured_models:
-            # Fallback if options haven't loaded yet
             configured_models = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite"}]
 
         for opt in configured_models:

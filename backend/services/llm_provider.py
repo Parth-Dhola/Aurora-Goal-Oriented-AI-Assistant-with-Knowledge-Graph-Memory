@@ -166,6 +166,22 @@ def set_active_llm(provider: str, model: Optional[str] = None) -> Dict[str, Any]
 def get_available_llm_options() -> list:
     """Return all supported LLM providers with available models and active status."""
     curr = get_current_llm_info()
+
+    # Check if local LLM is currently active or alive on network
+    local_url = os.getenv("LOCAL_LLM_URL", "")
+    local_model = os.getenv("LOCAL_LLM_MODEL", "qwen3.5-2b")
+    local_configured = False
+    if local_url:
+        if curr["provider"] in ("local", "ollama", "lmstudio", "vllm"):
+            local_configured = True
+        else:
+            try:
+                import requests
+                r = requests.get(f"{local_url}/models", timeout=0.25)
+                local_configured = (r.status_code == 200)
+            except Exception:
+                local_configured = False
+
     options = [
         {
             "id": "gemini",
@@ -177,10 +193,10 @@ def get_available_llm_options() -> list:
         },
         {
             "id": "local",
-            "name": "Local LLM (llama.cpp / Ollama)",
-            "default_model": os.getenv("LLM_MODEL", "qwen3.5-2b"),
-            "models": [os.getenv("LLM_MODEL", "qwen3.5-2b"), "llama3.2", "mistral", "deepseek-r1"],
-            "configured": bool(os.getenv("LOCAL_LLM_URL")),
+            "name": "Local LLM",
+            "default_model": local_model,
+            "models": [local_model, "llama3.2", "mistral", "deepseek-r1"],
+            "configured": local_configured,
             "active": curr["provider"] in ("local", "ollama", "lmstudio", "vllm")
         },
         {
@@ -193,7 +209,7 @@ def get_available_llm_options() -> list:
         },
         {
             "id": "groq",
-            "name": "Groq (Ultra-Fast)",
+            "name": "Groq",
             "default_model": "llama-3.3-70b-versatile",
             "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"],
             "configured": bool(os.getenv("GROQ_API_KEY")),
@@ -201,7 +217,7 @@ def get_available_llm_options() -> list:
         },
         {
             "id": "anthropic",
-            "name": "Anthropic Claude",
+            "name": "Claude",
             "default_model": "claude-3-5-sonnet-20241022",
             "models": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
             "configured": bool(os.getenv("ANTHROPIC_API_KEY")),
