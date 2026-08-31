@@ -6,10 +6,11 @@
 
 Aurora consists of:
 1. **FastAPI Backend with CRAG Agent**: Corrective RAG state graph with LangGraph, SQLite Knowledge Graph memory, and DuckDuckGo search fallback.
-2. **Knowledge Graph (KG) & Obsidian Visualization**: Tracks entities, habits, goals, and struggles as structured graphs exportable directly into Obsidian.
-3. **Telegram Bot**: Full assistant access via Telegram with secure JWT login and auto-completing commands.
-4. **Android App (Kivy)**: Mobile app with real-time WebSocket communication and quick suggestion chips.
-5. **MLOps & CI/CD**: MLflow run & strategy tracking, Docker containerization, and GitHub Actions workflow.
+2. **Hybrid GraphRAG & Document Knowledge Base**: Ingests PDFs & textbooks, decomposes them into hierarchical topic notes with LaTeX and formulas, and interconnects them in Obsidian.
+3. **Knowledge Graph (KG) & Obsidian Visualization**: Tracks entities, habits, goals, and struggles as structured graphs exportable directly into Obsidian.
+4. **Telegram Bot**: Full assistant access via Telegram with secure JWT login, document upload support, and auto-completing commands.
+5. **Android App (Kivy)**: Mobile app with real-time WebSocket communication, Eye-Care Warm Paper theme switcher, and in-app file uploader.
+6. **MLOps & CI/CD**: MLflow run & strategy tracking, Docker containerization, and GitHub Actions workflow.
 
 ---
 
@@ -31,8 +32,8 @@ User Message
 │  └─────────────────────┬────────────────────────────┘   │
 │                        │                                │
 │  ┌─────────────────────▼────────────────────────────┐   │
-│  │  retrieve_context                                │   │
-│  │    └─ KG traversal → markdown context brief     │   │
+│  │  retrieve_context (Hybrid GraphRAG)              │   │
+│  │    └─ KG traversal + Document chunks → brief    │   │
 │  └─────────────────────┬────────────────────────────┘   │
 │                        │                                │
 │  ┌─────────────────────▼────────────────────────────┐   │
@@ -56,7 +57,7 @@ User Message
 ```
 
 1. **`extract_entities`**: Automatically detects user facts, learning weaknesses, and casual goals from conversation and persists them to the Knowledge Graph.
-2. **`retrieve_context`**: Queries `kg_nodes` and `kg_edges` to assemble a prioritized markdown context brief.
+2. **`retrieve_context`**: Queries `kg_nodes`, `kg_edges`, and `document_chunks` to assemble a fused markdown context brief.
 3. **`grade_context`**: Grades whether the retrieved context is sufficient and relevant to answer the query.
 4. **`generate`**: Synthesizes an actionable response using Gemini with Chain-of-Thought reasoning.
 5. **`check_groundedness`**: Validates whether the answer is factually grounded without hallucinations.
@@ -83,11 +84,12 @@ aurora-final/
 │   ├── requirements.txt              # Python dependencies
 │   ├── Dockerfile                    # Backend container definition
 │   ├── models/
-│   │   └── database.py               # SQLite schema (users, tasks, KG, chats, logs)
+│   │   └── database.py               # SQLite schema (users, tasks, KG, docs, llm_logs)
 │   ├── routes/
 │   │   ├── auth.py                   # /api/auth (JWT registration & login)
 │   │   ├── chat.py                   # /api/chat (CRAG agent REST endpoint)
 │   │   ├── goals.py                  # /api/goals (Goal management & priority tracking)
+│   │   ├── documents.py              # /api/documents (PDF upload & topic notes)
 │   │   ├── kg.py                     # /api/kg (KG nodes, edges & Obsidian export)
 │   │   ├── tasks.py                  # /api/tasks (Daily task tracking)
 │   │   ├── stats.py                  # /api/stats (Analytics & strategy breakdown)
@@ -95,16 +97,17 @@ aurora-final/
 │   │   └── websocket.py              # /ws/chat (Real-time bidirectional chat)
 │   ├── services/
 │   │   ├── crag_agent.py             # LangGraph CRAG StateGraph core
+│   │   ├── document_service.py       # PDF parsing + Deep KG decomposition
 │   │   ├── kg_service.py             # Entity extraction & SQLite KG CRUD
-│   │   ├── context_builder.py        # KG graph traversal → context brief
+│   │   ├── context_builder.py        # KG + Document Knowledge → context brief
 │   │   ├── mlflow_service.py         # MLOps tracking for strategy & prompts
 │   │   ├── llm_service.py            # Chat orchestration & logging
 │   │   └── auth_service.py           # Password hashing & JWT verification
 │   └── tests/
-│       └── test_api.py               # Complete test suite (23 unit/integration tests)
+│       └── test_api.py               # Complete test suite (28 unit/integration tests)
 │
 ├── android-app/                      # Android Mobile App (Kivy)
-│   ├── main.py                       # App UI, WebSockets & suggestion chips
+│   ├── main.py                       # App UI, Eye-Care themes, WebSockets & file uploader
 │   └── buildozer.spec                # Android APK build spec
 │
 ├── scripts/                          # Automation & Utilities
@@ -114,16 +117,57 @@ aurora-final/
 └── obsidian-KG-vault/                # Generated Obsidian Vault (gitignored)
     ├── _Overview.md                  # Master KG index & Dataview queries
     ├── Goals/                        # Goal notes with wikilinks & metadata
-    └── Topics/                       # Topic notes with relationships
+    ├── Topics/                       # Topic notes with relationships
+    └── Documents/                    # In-depth structured study notes from uploaded PDFs
 ```
 
 ---
 
-## Setup & Running Guide
+## Running with Docker (Recommended for Deployment)
+
+Docker runs the entire Aurora ecosystem in isolated, production-ready containers.
+
+### 1. Prerequisites
+- Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Mac/Windows/Linux).
+- Ensure `.env` is configured in the project root with your `GEMINI_API_KEY` and `SECRET_KEY`.
+
+### 2. Start Services with Docker Compose
+From the project root:
+```bash
+docker compose up --build
+```
+To run in the background (detached mode):
+```bash
+docker compose up -d --build
+```
+
+### 3. Check Running Containers & Logs
+```bash
+# View running containers
+docker compose ps
+
+# View live backend logs
+docker compose logs -f backend
+
+# View MLflow logs
+docker compose logs -f mlflow
+```
+
+### 4. Access Services
+- **Backend API & Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **MLflow Tracking Dashboard**: [http://localhost:5001](http://localhost:5001)
+
+### 5. Stop Containers
+```bash
+docker compose down
+```
+
+---
+
+## Running Directly with Python Scripts (Local Development)
 
 ### 1. Environment Setup
-
-Create a conda environment or Python virtual environment:
+Create and activate the conda/virtual environment:
 ```bash
 conda create -n aurora python=3.11 -y
 conda activate aurora
@@ -135,81 +179,77 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Variables
-
-Create `.env` in the root folder (or copy from `.env.example`):
+### 2. Configure `.env`
+Copy the template and fill in your keys:
 ```bash
 cp .env.example .env
 ```
-
-Fill in your secrets:
-- `GEMINI_API_KEY`: Get from [Google AI Studio](https://aistudio.google.com/app/apikey).
-- `SECRET_KEY`: Random 32+ character string.
-- `TELEGRAM_TOKEN`: (Optional) From [@BotFather](https://t.me/BotFather) on Telegram.
+Key variables:
+- `GEMINI_API_KEY`: From [Google AI Studio](https://aistudio.google.com/app/apikey).
+- `SECRET_KEY`: Long random string for JWT signing.
+- `TELEGRAM_TOKEN`: (Optional) From [@BotFather](https://t.me/BotFather).
 - `AURORA_API_BASE`: `http://localhost:8000/api`
-- `AURORA_USERNAME` & `AURORA_PASSWORD`: Your credentials for local scripts.
+- `AURORA_USERNAME` & `AURORA_PASSWORD`: Your credentials for CLI scripts.
 
-### 3. Run the Backend API
+---
 
+### 3. Script Execution Reference
+
+#### A. Run Backend API Server
 ```bash
 cd backend
 uvicorn app:app --reload --port 8000
 ```
-- Swagger Documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+- Interactive Swagger docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Health check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
-### 4. Run the Telegram Bot
-
+#### B. Run the Telegram Bot
 In a separate terminal:
 ```bash
 cd backend
 conda activate aurora
 python bot.py
 ```
-Send `/start` to your bot on Telegram and log in using `/login <username> <password>`.
+- Send `/start` to your bot on Telegram.
+- Log in with `/login` flow.
+- Send `/docs` to see study materials or drag & drop any `.pdf` to decompose it into Knowledge Graph notes!
 
-### 5. Visualize the Knowledge Graph in Obsidian
-
-1. Ensure the backend server is running.
-2. Run the sync script:
-   ```bash
-   conda activate aurora
-   python scripts/sync_to_obsidian.py
-   ```
-3. The script exports all nodes/edges as Markdown with YAML frontmatter into `obsidian-KG-vault/`.
-4. Open `obsidian-KG-vault` as a vault in Obsidian.
-5. Press **`Cmd + G`** (or `Ctrl + G`) to view the interactive Knowledge Graph.
-
-### 6. Run the Android App (Locally or on Device)
-
+#### C. Run the Android App (Kivy)
 ```bash
 cd android-app
 pip install kivy requests websocket-client
 python main.py
 ```
+- Supports real-time WebSocket chat.
+- Tap `🌙 Theme` / `☀️ Light` in the header to switch between **Eye-Care Warm Paper** and **Soft Slate** themes.
+- Tap `📎` to pick and upload study notes directly into the Knowledge Graph.
 
-### 7. Run Test Suite
+#### D. Sync Knowledge Graph to Obsidian
+```bash
+conda activate aurora
+python scripts/sync_to_obsidian.py
+```
+- Automatically exports all nodes, edges, and document study notes into `obsidian-KG-vault/`.
+- Opens Obsidian and reveals your visual Knowledge Graph (`Cmd + G`).
 
+#### E. Production Deployment Script
+```bash
+bash scripts/deploy.sh
+```
+- Pulls latest main branch, rebuilds Docker images, and cleans up orphaned containers.
+
+#### F. Run Automated Test Suite
 ```bash
 cd backend
 pytest tests/ -v
 ```
-All 23 unit & integration tests validate authentication, tasks, goals, Knowledge Graph endpoints, reminders, and stats without making external network calls.
+- Executes all 28 unit and integration tests covering auth, tasks, goals, documents, Knowledge Graph, and stats.
 
 ---
 
-## Docker & Production Deployment
+## Continuous Integration & Deployment (CI/CD)
 
-### Run with Docker Compose
-```bash
-docker compose up --build
-```
-- Backend runs on `http://localhost:8000`
-- MLflow dashboard runs on `http://localhost:5001`
-
-### Continuous Integration (CI/CD)
-The `.github/workflows/ci-cd.yml` workflow automatically:
-1. Runs the test suite on Python 3.11.
-2. Builds and tags multi-architecture Docker images.
-3. Pushes images to Docker Hub (`${{ secrets.DOCKERHUB_USERNAME }}/aurora-backend:latest`).
-4. (Optional) Deploys to EC2 if `EC2_HOST` and `EC2_SSH_KEY` secrets are configured.
+The GitHub Actions workflow (`.github/workflows/ci-cd.yml`) automatically:
+1. **Tests**: Runs the 28-test suite on Python 3.11 with coverage metrics.
+2. **Build & Push**: Builds multi-arch Docker images and pushes to Docker Hub. *(Skips gracefully if `DOCKERHUB_USERNAME` secret is not configured)*.
+3. **Deploy**: SSH deploys to your EC2 server. *(Skips gracefully if `EC2_HOST` secret is not configured)*.

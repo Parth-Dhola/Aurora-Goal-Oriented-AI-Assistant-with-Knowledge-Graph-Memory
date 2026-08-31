@@ -79,3 +79,4 @@ async def delete_document(doc_id: int, user: dict = Depends(get_current_user)):
     if not success:
         raise HTTPException(status_code=404, detail="Document not found.")
     return {"status": "deleted", "id": doc_id}
+
