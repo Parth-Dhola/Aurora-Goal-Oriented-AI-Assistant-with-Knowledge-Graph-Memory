@@ -506,19 +506,25 @@ async def cmd_model(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if curr.get("is_local"):
             active_desc += " [⚡ Offline Local]"
 
-        buttons = [
-            [
-                InlineKeyboardButton("⚡ Local (qwen3.5-2b)", callback_data="llm:local:qwen3.5-2b"),
-                InlineKeyboardButton("🤖 Gemini (Flash Lite)", callback_data="llm:gemini:gemini-3.1-flash-lite")
-            ],
-            [
-                InlineKeyboardButton("🚀 Groq (Llama-3.3-70B)", callback_data="llm:groq:llama-3.3-70b-versatile"),
-                InlineKeyboardButton("🧠 OpenAI (GPT-4o-mini)", callback_data="llm:openai:gpt-4o-mini")
-            ],
-            [
-                InlineKeyboardButton("🎭 Claude (3.5 Sonnet)", callback_data="llm:anthropic:claude-3-5-sonnet-20241022")
-            ]
-        ]
+        options = data.get("options", [])
+        configured_opts = [opt for opt in options if opt.get("configured")]
+        if not configured_opts:
+            configured_opts = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite"}]
+
+        buttons = []
+        row = []
+        for opt in configured_opts:
+            prov = opt.get("id")
+            pname = opt.get("name", prov.capitalize())
+            mname = opt.get("default_model")
+            btn = InlineKeyboardButton(f"{pname} ({mname})", callback_data=f"llm:{prov}:{mname}")
+            row.append(btn)
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+
         keyboard = InlineKeyboardMarkup(buttons)
 
         await update.message.reply_text(

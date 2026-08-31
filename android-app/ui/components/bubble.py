@@ -1,5 +1,5 @@
 """
-ui/components/bubble.py — Stylized Chat Bubble Card with Avatar Badges & Markdown Formatter
+ui/components/bubble.py — Stylized Chat Bubble Card with Avatar Badges & Clean Text Formatter
 """
 import re
 from kivy.uix.boxlayout import BoxLayout
@@ -13,7 +13,7 @@ from ui.theme import THEMES
 def render_markdown_for_kivy(text: str) -> str:
     """
     Parses LLM Markdown (headings, bold, lists, wikilinks, code blocks)
-    into clean, readable Kivy markup without raw markdown symbols (*, #).
+    into clean, natural, readable Kivy text without raw markdown symbols (*, #).
     """
     if not text:
         return ""
@@ -21,11 +21,11 @@ def render_markdown_for_kivy(text: str) -> str:
     # Replace square brackets in content to prevent Kivy BBCode parse breaks
     text = text.replace("&", "&amp;").replace("[[", "(").replace("]]", ")")
 
-    # Priority badges replacement for goal listings and status
-    text = re.sub(r'(?i)\b(priority:\s*urgent|priority\s*urgent|urgent priority)\b', r'[b][ URGENT ][/b]', text)
-    text = re.sub(r'(?i)\b(priority:\s*high|priority\s*high|high priority)\b', r'[b][ HIGH ][/b]', text)
-    text = re.sub(r'(?i)\b(priority:\s*medium|priority\s*medium|medium priority)\b', r'[b][ MEDIUM ][/b]', text)
-    text = re.sub(r'(?i)\b(priority:\s*low|priority\s*low|low priority)\b', r'[b][ LOW ][/b]', text)
+    # Clean priority labels naturally (no ugly brackets)
+    text = re.sub(r'(?i)\b(?:priority:\s*urgent|priority\s*urgent|urgent priority)\b', r'[b]Urgent[/b]', text)
+    text = re.sub(r'(?i)\b(?:priority:\s*high|priority\s*high|high priority)\b', r'[b]High[/b]', text)
+    text = re.sub(r'(?i)\b(?:priority:\s*medium|priority\s*medium|medium priority)\b', r'[b]Medium[/b]', text)
+    text = re.sub(r'(?i)\b(?:priority:\s*low|priority\s*low|low priority)\b', r'[b]Low[/b]', text)
 
     # Convert Markdown Headings (# Header, ## Header, ### Header) to Bold
     text = re.sub(r'(?m)^#{1,6}\s*(.+)$', r'[b]\1[/b]', text)
@@ -55,9 +55,9 @@ def render_markdown_for_kivy(text: str) -> str:
 class ChatBubble(BoxLayout):
     """
     Custom Chat Card Widget:
-      - Header badge with sender identity ('[ AURORA ]' or '[ YOU ]')
-      - Formatted message body with Markdown rendering
-      - Rounded card background
+      - Clean sender header ('Aurora' or 'You')
+      - Formatted message body
+      - Smooth rounded card background
     """
 
     def __init__(self, text: str, is_user: bool = False, theme_name: str = "aurora", **kwargs):
@@ -68,7 +68,7 @@ class ChatBubble(BoxLayout):
 
         t = THEMES.get(theme_name, THEMES["aurora"])
         bg_col = t["user_bubble_bg"] if is_user else t["ai_bubble_bg"]
-        badge_text = "[ YOU ]" if is_user else "[ AURORA ]"
+        badge_text = "You" if is_user else "Aurora"
         badge_col = t["badge_user_fg"] if is_user else t["badge_ai_fg"]
 
         # Sender identity badge

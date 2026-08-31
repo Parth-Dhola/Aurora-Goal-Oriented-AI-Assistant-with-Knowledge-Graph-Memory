@@ -12,6 +12,8 @@ services:
       - aurora-data:/app/data # SQLite database survives restarts
     env_file:
       - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

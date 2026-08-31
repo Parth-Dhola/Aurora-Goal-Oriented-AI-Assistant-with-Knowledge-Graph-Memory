@@ -86,3 +86,4 @@ class IconButton(ButtonBehavior, BoxLayout):
     def set_text(self, text: str):
         if self.lbl_widget:
             self.lbl_widget.text = text
+

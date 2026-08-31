@@ -1,5 +1,5 @@
 """
-ui/screens/chat.py — Real-Time Chat, Model Switcher & Document Ingestion Screen for Aurora
+ui/screens/chat.py — Real-Time Chat, Dynamic LLM Switcher & Document Ingestion Screen for Aurora
 """
 import os
 import threading
@@ -72,13 +72,21 @@ class ChatScreen(Screen):
 
     THEME_KEYS = ["aurora", "light", "slate"]
     THEME_ICONS = {"aurora": "theme_aurora", "light": "theme_sun", "slate": "theme_moon"}
+    LLM_ICONS = {
+        "gemini": "llm_gemini",
+        "local": "llm_local",
+        "openai": "llm_openai",
+        "groq": "llm_groq",
+        "anthropic": "llm_anthropic"
+    }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.ws = None
         self.thinking_bubble = None
         self.theme_mode = CURRENT_THEME
-        self.active_llm = "GEMINI"
+        self.active_llm = "gemini"
+        self.available_options = []
         t = THEMES[self.theme_mode]
 
         self.root_layout = BoxLayout(orientation="vertical")
@@ -87,20 +95,20 @@ class ChatScreen(Screen):
         header = BoxLayout(
             size_hint_y=None,
             height=dp(56),
-            padding=[dp(10), dp(8)],
+            padding=[dp(8), dp(8)],
             spacing=dp(6)
         )
 
         # Left branding block: Status Dot + App Title
         left_block = BoxLayout(
-            size_hint_x=0.30,
+            size_hint_x=0.28,
             spacing=dp(6),
             pos_hint={"center_y": 0.5}
         )
         self.status_dot = StatusDot(pos_hint={"center_y": 0.5})
         self.header_title = Label(
             text="Aurora",
-            font_size=sp(17),
+            font_size=sp(16),
             bold=True,
             color=t["text_primary"],
             halign="left",
@@ -113,7 +121,7 @@ class ChatScreen(Screen):
 
         # Right control block: Model Switcher + Theme Toggle + Logout
         self.model_btn = IconButton(
-            icon_name="theme_aurora",
+            icon_name="llm_gemini",
             text="GEMINI",
             bg_color=t["btn_grey"],
             fg_color=t["btn_grey_fg"],
@@ -129,17 +137,18 @@ class ChatScreen(Screen):
             bg_color=t["btn_grey"],
             fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(100), dp(36)),
+            size=(dp(96), dp(36)),
             pos_hint={"center_y": 0.5}
         )
         self.theme_btn.bind(on_press=self.cycle_theme)
 
         self.logout_btn = IconButton(
-            text="EXIT",
+            icon_name="logout",
+            text="LOGOUT",
             bg_color=t["btn_grey"],
             fg_color=(0.95, 0.40, 0.40, 1),
             size_hint=(None, None),
-            size=(dp(60), dp(36)),
+            size=(dp(88), dp(36)),
             pos_hint={"center_y": 0.5}
         )
         self.logout_btn.bind(on_press=self.logout)
@@ -289,7 +298,7 @@ class ChatScreen(Screen):
             chip.color = t["chip_fg"]
 
     def open_model_picker(self, instance):
-        """Open popup allowing user to switch LLM provider and model."""
+        """Open popup displaying ONLY available/configured LLM options."""
         t = THEMES[self.theme_mode]
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
 
@@ -303,24 +312,17 @@ class ChatScreen(Screen):
         )
         content.add_widget(title)
 
-        models = [
-            ("Google Gemini (Flash Lite)", "gemini", "gemini-3.1-flash-lite"),
-            ("Local LLM (qwen3.5-2b)", "local", "qwen3.5-2b"),
-            ("Groq (Llama-3.3-70B)", "groq", "llama-3.3-70b-versatile"),
-            ("OpenAI (GPT-4o-mini)", "openai", "gpt-4o-mini"),
-            ("Anthropic (Claude 3.5 Sonnet)", "anthropic", "claude-3-5-sonnet-20241022"),
-        ]
-
         popup = Popup(
-            title="AI Brain Settings",
+            title="Available AI Models",
             content=content,
-            size_hint=(0.92, 0.65),
+            size_hint=(0.92, 0.58),
             background_color=t["header_bg"]
         )
 
         def switch_to(provider, model_name, label_text):
             popup.dismiss()
-            self.active_llm = provider.upper()
+            self.active_llm = provider.lower()
+            self.model_btn.set_icon(self.LLM_ICONS.get(self.active_llm, "llm_gemini"))
             self.model_btn.set_text(provider.upper()[:6])
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
@@ -336,14 +338,26 @@ class ChatScreen(Screen):
             
             threading.Thread(target=_worker, daemon=True).start()
 
-        for label_text, prov, mname in models:
+        # Show only configured options
+        configured_models = [opt for opt in self.available_options if opt.get("configured")]
+        if not configured_models:
+            # Fallback if options haven't loaded yet
+            configured_models = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite"}]
+
+        for opt in configured_models:
+            prov = opt.get("id")
+            mname = opt.get("default_model")
+            name = opt.get("name", prov.capitalize())
+            label_text = f"{name} ({mname})"
+            is_active = (prov.lower() == self.active_llm.lower())
+
             btn = Button(
                 text=label_text,
                 size_hint_y=None,
                 height=dp(44),
-                background_color=t["btn_primary"] if prov.upper() == self.active_llm else t["chip_bg"],
+                background_color=t["btn_primary"] if is_active else t["chip_bg"],
                 background_normal="",
-                color=(1, 1, 1, 1) if prov.upper() == self.active_llm else t["chip_fg"],
+                color=(1, 1, 1, 1) if is_active else t["chip_fg"],
                 font_size=sp(13),
                 bold=True
             )
@@ -402,16 +416,22 @@ class ChatScreen(Screen):
         self.header_title.text = f"Aurora — {app.username}"
         self.add_bubble("Hey! I'm Aurora. Connected to your personal Knowledge Graph.", is_user=False)
         
-        # Query active LLM status from server
+        # Query active LLM status and available options from server
         def _fetch_active_llm():
             res = api_get("/llm/", token=app.token)
             if "current" in res:
-                prov = res["current"].get("provider", "gemini").upper()
+                prov = res["current"].get("provider", "gemini").lower()
                 self.active_llm = prov
-                Clock.schedule_once(lambda dt: self.model_btn.set_text(prov[:6]), 0)
+                self.available_options = res.get("options", [])
+                icon_name = self.LLM_ICONS.get(prov, "llm_gemini")
+                Clock.schedule_once(lambda dt: self._update_model_btn(icon_name, prov.upper()[:6]), 0)
         
         threading.Thread(target=_fetch_active_llm, daemon=True).start()
         self._connect_ws()
+
+    def _update_model_btn(self, icon_name, text):
+        self.model_btn.set_icon(icon_name)
+        self.model_btn.set_text(text)
 
     def _connect_ws(self):
         if not WS_AVAILABLE:
