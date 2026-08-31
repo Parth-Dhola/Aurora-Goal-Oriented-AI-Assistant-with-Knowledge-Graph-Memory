@@ -106,3 +106,4 @@ class ChatBubble(BoxLayout):
     def _update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
+

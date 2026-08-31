@@ -61,3 +61,4 @@ def get_ws_base() -> str:
     ws_protocol = "wss" if SERVER_URL.startswith("https") else "ws"
     host = SERVER_URL.split("://")[-1]
     return f"{ws_protocol}://{host}/ws"
+

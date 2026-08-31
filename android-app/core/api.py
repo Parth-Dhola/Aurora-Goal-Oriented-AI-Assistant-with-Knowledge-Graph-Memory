@@ -24,6 +24,19 @@ def api_post(endpoint: str, data: dict, token: Optional[str] = None) -> Dict[str
         return {"error": str(e)}
 
 
+def api_get(endpoint: str, token: Optional[str] = None) -> Dict[str, Any]:
+    """Send JSON GET request to Aurora API."""
+    url = f"{get_api_base()}{endpoint}"
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        r = requests.get(url, headers=headers, timeout=15)
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def api_upload_document(filepath: str, token: str) -> Dict[str, Any]:
     """Upload a study PDF or text note to the Knowledge Graph."""
     import os
@@ -43,3 +56,4 @@ def api_upload_document(filepath: str, token: str) -> Dict[str, Any]:
         return {"detail": "Cannot connect to server."}
     except Exception as e:
         return {"detail": str(e)}
+

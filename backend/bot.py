@@ -34,12 +34,13 @@ sys.path.insert(0, os.path.dirname(__file__))
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 load_dotenv()  # also try local .env
 
-from telegram import Update, BotCommand
+from telegram import Update, BotCommand, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     ConversationHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters,
 )
@@ -488,6 +489,90 @@ async def cmd_docs(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Could not fetch documents: {e}")
 
 
+# ── /model (Switch AI Provider & Model) ────────────────────────────────────────
+async def cmd_model(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Display active AI model and inline buttons to switch providers."""
+    tid = update.effective_user.id
+    token = _get_token(tid)
+    if not token:
+        await update.message.reply_text("🔒 Please log in first with /login")
+        return
+
+    try:
+        r = requests.get(f"{API_BASE}/llm/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        data = r.json()
+        curr = data.get("current", {})
+        active_desc = f"*{curr.get('provider', 'unknown').upper()}* (`{curr.get('model', 'default')}`)"
+        if curr.get("is_local"):
+            active_desc += " [⚡ Offline Local]"
+
+        buttons = [
+            [
+                InlineKeyboardButton("⚡ Local (qwen3.5-2b)", callback_data="llm:local:qwen3.5-2b"),
+                InlineKeyboardButton("🤖 Gemini (Flash Lite)", callback_data="llm:gemini:gemini-3.1-flash-lite")
+            ],
+            [
+                InlineKeyboardButton("🚀 Groq (Llama-3.3-70B)", callback_data="llm:groq:llama-3.3-70b-versatile"),
+                InlineKeyboardButton("🧠 OpenAI (GPT-4o-mini)", callback_data="llm:openai:gpt-4o-mini")
+            ],
+            [
+                InlineKeyboardButton("🎭 Claude (3.5 Sonnet)", callback_data="llm:anthropic:claude-3-5-sonnet-20241022")
+            ]
+        ]
+        keyboard = InlineKeyboardMarkup(buttons)
+
+        await update.message.reply_text(
+            f"🧠 *AI Model Settings*\n\n"
+            f"Currently Active: {active_desc}\n\n"
+            f"Tap an option below to switch Aurora's brain dynamically:",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Fetch LLM status error: {e}")
+        await update.message.reply_text(f"❌ Could not retrieve model status: {e}")
+
+
+async def handle_model_switch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle inline button click for switching LLM."""
+    query = update.callback_query
+    await query.answer()
+
+    tid = update.effective_user.id
+    token = _get_token(tid)
+    if not token:
+        await query.edit_message_text("🔒 Session expired. Please log in with /login")
+        return
+
+    # callback format: "llm:<provider>:<model>"
+    parts = query.data.split(":")
+    if len(parts) >= 3:
+        provider = parts[1]
+        model = parts[2]
+        try:
+            r = requests.post(
+                f"{API_BASE}/llm/switch",
+                json={"provider": provider, "model": model},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10
+            )
+            res = r.json()
+            if res.get("status") == "success":
+                await query.edit_message_text(
+                    f"✅ *AI Provider Switched Successfully!*\n\n"
+                    f"• Provider: `{provider}`\n"
+                    f"• Model: `{model}`\n\n"
+                    f"All new queries and document notes will now use this model!",
+                    parse_mode="Markdown"
+                )
+            else:
+                err = res.get("detail", "Switch failed")
+                await query.edit_message_text(f"❌ Switch failed: {err}")
+        except Exception as e:
+            logger.error(f"Switch LLM error: {e}")
+            await query.edit_message_text(f"❌ Connection error: {e}")
+
+
 # ── /help ──────────────────────────────────────────────────────────────────────
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -495,9 +580,10 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "*Auth*\n"
         "/login — connect your Aurora account\n"
         "/logout — sign out\n\n"
-        "*AI Chat (CRAG Agent)*\n"
+        "*AI Chat & Models*\n"
         "/ask <question> — chat with Aurora\n"
-        "/plan — plan your day based on your goals\n\n"
+        "/plan — plan your day based on your goals\n"
+        "/model — switch AI model (Local, Gemini, OpenAI, Groq, Claude)\n\n"
         "*Study Documents (Hybrid RAG)*\n"
         "/docs — list your uploaded documents\n"
         "📎 _(Send any .pdf or .txt file directly to upload & structure into KG)_\n\n"
@@ -519,6 +605,7 @@ _COMMANDS = [
     BotCommand("logout",  "🚪 Sign out"),
     BotCommand("ask",     "💬 Ask Aurora anything"),
     BotCommand("plan",    "📋 Plan your day based on your goals"),
+    BotCommand("model",   "⚙️ Switch AI model (Local, Gemini, OpenAI, Groq)"),
     BotCommand("docs",    "📄 View uploaded study documents"),
     BotCommand("goals",   "🎯 View your active goals"),
     BotCommand("addgoal", "➕ Add a new goal (e.g. /addgoal Lose weight high)"),
@@ -560,11 +647,14 @@ def main():
     app.add_handler(CommandHandler("logout",  cmd_logout))
     app.add_handler(CommandHandler("ask",     cmd_ask))
     app.add_handler(CommandHandler("plan",    cmd_plan))
+    app.add_handler(CommandHandler("model",   cmd_model))
+    app.add_handler(CommandHandler("llm",     cmd_model))
     app.add_handler(CommandHandler("docs",    cmd_docs))
     app.add_handler(CommandHandler("goals",   cmd_goals))
     app.add_handler(CommandHandler("addgoal", cmd_addgoal))
     app.add_handler(CommandHandler("stats",   cmd_stats))
     app.add_handler(CommandHandler("help",    cmd_help))
+    app.add_handler(CallbackQueryHandler(handle_model_switch, pattern="^llm:"))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
     print("[Bot] Aurora Telegram Bot is running. Press Ctrl+C to stop.")

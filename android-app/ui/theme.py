@@ -4,7 +4,9 @@ ui/theme.py — Theme definitions & color palettes for Aurora Android App
 
 THEMES = {
     "aurora": {
-        "name": "[ Aurora ]",
+        "name": "Aurora",
+        "icon": "◈ AURORA",
+        "symbol": "◈",
         "window_bg":       (0.06, 0.08, 0.14, 1),    # Midnight indigo
         "header_bg":       (0.09, 0.12, 0.20, 1),
         "text_primary":    (0.88, 0.96, 1.0, 1),     # Glowing ice white
@@ -28,7 +30,9 @@ THEMES = {
         "btn_grey_fg":     (0.70, 0.85, 0.95, 1),
     },
     "light": {
-        "name": "[ Paper ]",
+        "name": "Paper",
+        "icon": "☼ PAPER",
+        "symbol": "☼",
         "window_bg":       (0.96, 0.95, 0.93, 1),    # Warm paper cream (eye-care)
         "header_bg":       (1.0, 1.0, 1.0, 1),
         "text_primary":    (0.13, 0.16, 0.22, 1),    # Deep charcoal
@@ -52,7 +56,9 @@ THEMES = {
         "btn_grey_fg":     (0.25, 0.30, 0.38, 1),
     },
     "slate": {
-        "name": "[ Slate ]",
+        "name": "Slate",
+        "icon": "☾ SLATE",
+        "symbol": "☾",
         "window_bg":       (0.12, 0.14, 0.18, 1),    # Gentle slate charcoal
         "header_bg":       (0.16, 0.19, 0.25, 1),
         "text_primary":    (0.92, 0.94, 0.97, 1),
@@ -76,3 +82,4 @@ THEMES = {
         "btn_grey_fg":     (0.85, 0.90, 0.96, 1),
     }
 }
+

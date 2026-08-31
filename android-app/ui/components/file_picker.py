@@ -120,3 +120,4 @@ class DocumentPickerDialog:
         content.add_widget(btn_bar)
 
         self.popup.open()
+

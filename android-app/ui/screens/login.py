@@ -201,3 +201,4 @@ class LoginScreen(Screen):
         chat = self.manager.get_screen("chat")
         chat.on_enter_setup()
         self.manager.current = "chat"
+

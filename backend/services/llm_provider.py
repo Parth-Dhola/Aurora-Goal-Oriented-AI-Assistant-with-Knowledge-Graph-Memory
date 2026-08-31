@@ -142,76 +142,159 @@ class AnthropicProvider(BaseLLMProvider):
 _PROVIDER_CACHE: Dict[str, BaseLLMProvider] = {}
 
 
+_ACTIVE_OVERRIDE: Dict[str, Optional[str]] = {"provider": None, "model": None}
+
+def set_active_llm(provider: str, model: Optional[str] = None) -> Dict[str, Any]:
+    """Dynamically switch the active LLM provider and model at runtime."""
+    provider = provider.lower().strip()
+    _ACTIVE_OVERRIDE["provider"] = provider
+    if model:
+        _ACTIVE_OVERRIDE["model"] = model.strip()
+    else:
+        defaults = {
+            "gemini": "gemini-3.1-flash-lite",
+            "openai": "gpt-4o-mini",
+            "anthropic": "claude-3-5-sonnet-20241022",
+            "groq": "llama-3.3-70b-versatile",
+            "local": os.getenv("LLM_MODEL", "qwen3.5-2b")
+        }
+        _ACTIVE_OVERRIDE["model"] = defaults.get(provider, "gemini-3.1-flash-lite")
+
+    return get_current_llm_info()
+
+
+def get_available_llm_options() -> list:
+    """Return all supported LLM providers with available models and active status."""
+    curr = get_current_llm_info()
+    options = [
+        {
+            "id": "gemini",
+            "name": "Google Gemini",
+            "default_model": "gemini-3.1-flash-lite",
+            "models": ["gemini-3.1-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"],
+            "configured": bool(os.getenv("GEMINI_API_KEY")),
+            "active": curr["provider"] == "gemini"
+        },
+        {
+            "id": "local",
+            "name": "Local LLM (llama.cpp / Ollama)",
+            "default_model": os.getenv("LLM_MODEL", "qwen3.5-2b"),
+            "models": [os.getenv("LLM_MODEL", "qwen3.5-2b"), "llama3.2", "mistral", "deepseek-r1"],
+            "configured": bool(os.getenv("LOCAL_LLM_URL")),
+            "active": curr["provider"] in ("local", "ollama", "lmstudio", "vllm")
+        },
+        {
+            "id": "openai",
+            "name": "OpenAI",
+            "default_model": "gpt-4o-mini",
+            "models": ["gpt-4o-mini", "gpt-4o", "o1-mini"],
+            "configured": bool(os.getenv("OPENAI_API_KEY")),
+            "active": curr["provider"] == "openai"
+        },
+        {
+            "id": "groq",
+            "name": "Groq (Ultra-Fast)",
+            "default_model": "llama-3.3-70b-versatile",
+            "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"],
+            "configured": bool(os.getenv("GROQ_API_KEY")),
+            "active": curr["provider"] == "groq"
+        },
+        {
+            "id": "anthropic",
+            "name": "Anthropic Claude",
+            "default_model": "claude-3-5-sonnet-20241022",
+            "models": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
+            "configured": bool(os.getenv("ANTHROPIC_API_KEY")),
+            "active": curr["provider"] == "anthropic"
+        }
+    ]
+    return options
+
+
 def get_llm_provider(
     provider_name: Optional[str] = None,
     model_name: Optional[str] = None
 ) -> BaseLLMProvider:
     """
     Factory to retrieve or instantiate the configured LLM provider.
-    Defaults to LLM_PROVIDER in .env (or 'gemini').
+    Honors runtime overrides, falling back to environment variables.
     """
-    provider = (provider_name or os.getenv("LLM_PROVIDER", "gemini")).lower()
+    provider = (
+        provider_name
+        or _ACTIVE_OVERRIDE["provider"]
+        or os.getenv("LLM_PROVIDER", "gemini")
+    ).lower()
+
+    model = (
+        model_name
+        or _ACTIVE_OVERRIDE["model"]
+        or os.getenv("LLM_MODEL")
+    )
     
-    cache_key = f"{provider}:{model_name or ''}"
+    cache_key = f"{provider}:{model or ''}"
     if cache_key in _PROVIDER_CACHE:
         return _PROVIDER_CACHE[cache_key]
 
     instance: BaseLLMProvider
 
     if provider == "gemini":
-        model = model_name or os.getenv("LLM_MODEL", "gemini-3.1-flash-lite")
-        instance = GoogleGeminiProvider(model_name=model)
+        target_model = model or "gemini-3.1-flash-lite"
+        instance = GoogleGeminiProvider(model_name=target_model)
 
     elif provider == "openai":
-        model = model_name or os.getenv("LLM_MODEL", "gpt-4o-mini")
+        target_model = model or "gpt-4o-mini"
         api_key = os.getenv("OPENAI_API_KEY", "")
-        instance = OpenAICompatibleProvider(model_name=model, api_key=api_key)
+        instance = OpenAICompatibleProvider(model_name=target_model, api_key=api_key)
 
     elif provider == "anthropic":
-        model = model_name or os.getenv("LLM_MODEL", "claude-3-5-sonnet-20241022")
-        instance = AnthropicProvider(model_name=model)
+        target_model = model or "claude-3-5-sonnet-20241022"
+        instance = AnthropicProvider(model_name=target_model)
 
     elif provider == "groq":
-        model = model_name or os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+        target_model = model or "llama-3.3-70b-versatile"
         api_key = os.getenv("GROQ_API_KEY", "")
         instance = OpenAICompatibleProvider(
-            model_name=model,
+            model_name=target_model,
             api_key=api_key,
             base_url="https://api.groq.com/openai/v1"
         )
 
     elif provider in ("local", "ollama", "lmstudio", "vllm"):
-        model = model_name or os.getenv("LLM_MODEL", "llama3.2")
+        target_model = model or "qwen3.5-2b"
         local_url = os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1")
         instance = OpenAICompatibleProvider(
-            model_name=model,
+            model_name=target_model,
             api_key="local-not-needed",
             base_url=local_url
         )
 
     else:
-        # Fallback to Gemini
-        model = model_name or "gemini-3.1-flash-lite"
-        instance = GoogleGeminiProvider(model_name=model)
+        target_model = model or "gemini-3.1-flash-lite"
+        instance = GoogleGeminiProvider(model_name=target_model)
 
     _PROVIDER_CACHE[cache_key] = instance
     return instance
 
 
-def get_current_llm_info() -> Dict[str, str]:
+def get_current_llm_info() -> Dict[str, Any]:
     """Return details about the currently active LLM provider and model."""
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    provider = (
+        _ACTIVE_OVERRIDE["provider"]
+        or os.getenv("LLM_PROVIDER", "gemini")
+    ).lower()
+
     default_models = {
         "gemini": "gemini-3.1-flash-lite",
         "openai": "gpt-4o-mini",
         "anthropic": "claude-3-5-sonnet-20241022",
         "groq": "llama-3.3-70b-versatile",
-        "local": "llama3.2"
+        "local": os.getenv("LLM_MODEL", "qwen3.5-2b")
     }
-    model = os.getenv("LLM_MODEL", default_models.get(provider, "gemini-3.1-flash-lite"))
+    model = _ACTIVE_OVERRIDE["model"] or os.getenv("LLM_MODEL", default_models.get(provider, "gemini-3.1-flash-lite"))
     return {
         "provider": provider,
         "model": model,
         "is_local": provider in ("local", "ollama", "lmstudio", "vllm"),
         "local_url": os.getenv("LOCAL_LLM_URL", "http://localhost:11434/v1") if provider in ("local", "ollama") else None
     }
+
