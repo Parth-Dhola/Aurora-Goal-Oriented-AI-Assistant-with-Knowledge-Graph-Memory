@@ -10,19 +10,18 @@ on:
 
 jobs:
   build:
-    name: Build Aurora APK
+    name: Build Aurora APK (arm64-v8a)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build with Buildozer Action
-        uses: ArtemBernatskyy/action-buildozer@master
-        with:
-          workdir: android-app
-          buildozer_version: stable
-          command: buildozer -v android debug
+      - name: Build APK with Kivy Buildozer Container
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/android-app":/home/user/hostcwd \
+            kivy/buildozer -v android debug
 
       - name: Upload Downloadable APK Artifact
         uses: actions/upload-artifact@v4
