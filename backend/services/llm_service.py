@@ -69,12 +69,13 @@ def _log_to_db(query: str, answer: str, latency_ms: float, strategy: str,
 
 
 # ── Main chat function ─────────────────────────────────────────────────────────
-def chat(user_message: str, session_id: str = "default", user_id: int = 1) -> str:
+def chat(user_message: str, session_id: str = "default", user_id: int = 1, return_details: bool = False):
     """
     Process a user message through the CRAG agent and return Aurora's reply.
 
-    session_id : used for LangGraph checkpointing + chat_history display
-    user_id    : scopes the knowledge graph to this user
+    session_id     : used for LangGraph checkpointing + chat_history display
+    user_id        : scopes the knowledge graph to this user
+    return_details : if True, returns dict with reply + full context_md and CRAG metadata
     """
     save_message("user", user_message, session_id)
 
@@ -85,6 +86,7 @@ def chat(user_message: str, session_id: str = "default", user_id: int = 1) -> st
     strategy         = result.get("strategy", "direct")
     kg_nodes_used    = result.get("kg_nodes_used", 0)
     context_relevant = result.get("context_relevant", False)
+    context_md       = result.get("context_md", "")
 
     save_message("model", reply, session_id)
     _log_to_db(user_message, reply, latency_ms, strategy, kg_nodes_used, context_relevant)
@@ -93,5 +95,15 @@ def chat(user_message: str, session_id: str = "default", user_id: int = 1) -> st
         latency_ms=latency_ms, kg_nodes_used=kg_nodes_used,
         context_relevant=context_relevant,
     )
+
+    if return_details:
+        return {
+            "reply": reply,
+            "strategy": strategy,
+            "kg_nodes_used": kg_nodes_used,
+            "context_relevant": context_relevant,
+            "context_md": context_md,
+            "latency_ms": latency_ms
+        }
 
     return reply
