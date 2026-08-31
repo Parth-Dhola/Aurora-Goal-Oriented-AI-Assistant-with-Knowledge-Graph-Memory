@@ -93,7 +93,7 @@ def open_obsidian():
         print("  1. Click  'Open folder as vault'")
         print(f"  2. Navigate to this project folder:")
         print(f"     {PROJECT_ROOT}")
-        print(f"  3. Select the  obsidian-vault  folder inside it")
+        print(f"  3. Select the  obsidian-KG-vault  folder inside it")
         print("  4. Click  Open")
         print("  5. Press  Cmd+G  →  Graph View")
         print()

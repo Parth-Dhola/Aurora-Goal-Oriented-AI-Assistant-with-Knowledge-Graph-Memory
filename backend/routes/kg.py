@@ -132,11 +132,12 @@ def _build_node_md(node: dict, edges_from: list, edges_to: list) -> str:
     return "\n".join(lines)
 
 
-def _build_overview_md(nodes: list, edges: list) -> str:
+def _build_overview_md(nodes: list, edges: list, docs: list = None) -> str:
     """Generate an _Overview.md index for the whole KG."""
     goals   = [n for n in nodes if n["type"] == "goal"  and n.get("status") == "active"]
     topics  = [n for n in nodes if n["type"] == "topic"]
-    facts   = [n for n in nodes if n["type"] not in ("goal", "topic", "person")]
+    facts   = [n for n in nodes if n["type"] not in ("goal", "topic", "person", "document")]
+    docs    = docs or []
 
     lines = [
         "# 🌟 Aurora Knowledge Graph\n",
@@ -150,6 +151,13 @@ def _build_overview_md(nodes: list, edges: list) -> str:
             icon = _PRIORITY_ICON.get(g["priority"], "•")
             fn   = _safe_filename(g["label"])
             lines.append(f"- {icon} [[{fn}]]")
+        lines.append("")
+
+    if docs:
+        lines.append("## 📄 Uploaded Documents & Notes\n")
+        for d in docs:
+            fn = _safe_filename(d["title"])
+            lines.append(f"- 📖 [[{fn}]] — _{d.get('summary', '')}_")
         lines.append("")
 
     if topics:
@@ -204,6 +212,18 @@ async def export_obsidian(user: dict = Depends(get_current_user)):
         JOIN   kg_nodes n2 ON e.target_id = n2.id
         WHERE  e.user_id=?
     """, (user["id"],)).fetchall()]
+
+    docs = [dict(r) for r in conn.execute(
+        "SELECT id, filename, title, summary FROM documents WHERE user_id=?",
+        (user["id"],)
+    ).fetchall()]
+
+    doc_chunks = [dict(r) for r in conn.execute("""
+        SELECT c.topic, c.content, d.title as doc_title, d.filename
+        FROM document_chunks c
+        JOIN documents d ON c.document_id = d.id
+        WHERE c.user_id = ?
+    """, (user["id"],)).fetchall()]
     conn.close()
 
     # Index edges by node id
@@ -217,7 +237,7 @@ async def export_obsidian(user: dict = Depends(get_current_user)):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         # Overview
-        zf.writestr("Aurora KG/_Overview.md", _build_overview_md(nodes, edges_raw))
+        zf.writestr("Aurora KG/_Overview.md", _build_overview_md(nodes, edges_raw, docs))
         # One file per node, organised into subfolders by type
         for node in nodes:
             if node["type"] == "person":
@@ -233,6 +253,20 @@ async def export_obsidian(user: dict = Depends(get_current_user)):
                 edges_to=edges_to.get(node["id"], []),
             )
             zf.writestr(f"Aurora KG/{folder}/{fn}.md", content)
+
+        # Include document topic notes
+        for dc in doc_chunks:
+            doc_folder = _safe_filename(dc["doc_title"])
+            topic_fn   = _safe_filename(dc["topic"])
+            frontmatter = (
+                "---\n"
+                f"aurora_type: document_topic\n"
+                f"document: \"{dc['doc_title']}\"\n"
+                f"tags: [aurora, study, document, {doc_folder.lower()}]\n"
+                f"source: \"{dc['filename']}\"\n"
+                "---\n\n"
+            )
+            zf.writestr(f"Aurora KG/Documents/{doc_folder}/{topic_fn}.md", frontmatter + dc["content"])
 
     buf.seek(0)
     filename = f"aurora_kg_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"

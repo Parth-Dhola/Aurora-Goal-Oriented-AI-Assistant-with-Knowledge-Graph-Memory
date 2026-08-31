@@ -148,6 +148,12 @@ docker compose up --build
 | `/api/chat/history` | GET | Yes | Chat history |
 | `/api/goals/` | GET/POST | Yes | List / create goals |
 | `/api/goals/{id}` | PATCH/DELETE | Yes | Update / archive goal |
+| `/api/documents/upload` | POST | Yes | Upload PDF / notes → auto-generate topic notes & KG |
+| `/api/documents/` | GET | Yes | List uploaded documents |
+| `/api/documents/{id}` | GET/DELETE | Yes | View document topic notes / delete document |
+| `/api/kg/nodes` | GET | Yes | Knowledge Graph nodes (JSON) |
+| `/api/kg/edges` | GET | Yes | Knowledge Graph edges & relations (JSON) |
+| `/api/kg/export/obsidian` | GET | Yes | Download Obsidian Vault (.zip) |
 | `/api/tasks/` | GET/POST | Yes | List / create tasks |
 | `/api/tasks/{id}` | PATCH/DELETE | Yes | Update / delete task |
 | `/api/stats/` | GET | Yes | Dashboard — tasks, LLM strategy breakdown, KG stats |
@@ -163,18 +169,21 @@ docker compose up --build
 aurora/
 ├── backend/
 │   ├── app.py                      # FastAPI entry point
-│   ├── models/database.py          # SQLite schema (users, tasks, chat, KG, llm_logs)
+│   ├── models/database.py          # SQLite schema (users, tasks, chat, KG, docs, llm_logs)
 │   ├── services/
 │   │   ├── crag_agent.py           # LangGraph CRAG StateGraph ← core
 │   │   ├── kg_service.py           # KG entity extraction + graph CRUD
-│   │   ├── context_builder.py      # KG → markdown context brief
+│   │   ├── document_service.py     # PDF parsing + topic decomposition + Hybrid RAG
+│   │   ├── context_builder.py      # KG + Document Knowledge → markdown context brief
 │   │   ├── mlflow_service.py       # MLflow logging (strategy + prompt versioning)
 │   │   ├── llm_service.py          # chat() — wires agent + history + logging
 │   │   └── auth_service.py         # JWT auth, password hashing
 │   ├── routes/
 │   │   ├── auth.py                 # /api/auth/
 │   │   ├── chat.py                 # /api/chat/
-│   │   ├── goals.py                # /api/goals/  ← new
+│   │   ├── goals.py                # /api/goals/
+│   │   ├── documents.py            # /api/documents/ (PDF upload & notes)
+│   │   ├── kg.py                   # /api/kg/ (Obsidian export)
 │   │   ├── tasks.py                # /api/tasks/
 │   │   ├── stats.py                # /api/stats/
 │   │   ├── reminders.py            # /api/reminders/

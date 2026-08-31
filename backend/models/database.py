@@ -116,6 +116,42 @@ def init_db():
         )
     """)
 
+    # ── Documents & Document Chunks (Hybrid GraphRAG) ──────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER,
+            filename    TEXT NOT NULL,
+            title       TEXT,
+            summary     TEXT,
+            total_pages INTEGER DEFAULT 1,
+            file_size   INTEGER DEFAULT 0,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS document_chunks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER,
+            user_id     INTEGER,
+            topic       TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            page_number INTEGER DEFAULT 1,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    try:
+        cursor.execute("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS document_chunks_fts USING fts5(
+                chunk_id UNINDEXED,
+                user_id UNINDEXED,
+                topic,
+                content
+            )
+        """)
+    except Exception as e:
+        print(f"[Aurora DB] FTS5 setup note: {e}")
+
     # ── Migrate existing llm_logs if columns missing ───────────────────────────
     existing_cols = [
         row[1] for row in cursor.execute("PRAGMA table_info(llm_logs)").fetchall()

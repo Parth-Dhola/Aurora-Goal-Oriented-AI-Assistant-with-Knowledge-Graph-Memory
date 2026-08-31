@@ -246,3 +246,56 @@ def test_create_reminder(auth_client):
                     json={"title": "Morning DSA", "remind_at": "2025-12-01T07:00:00"},
                     headers=H(token))
     assert r.status_code == 201
+
+
+# ── Documents (Hybrid GraphRAG) ───────────────────────────────────────────────
+def test_list_documents_empty(auth_client):
+    client, token = auth_client
+    r = client.get("/api/documents/", headers=H(token))
+    assert r.status_code == 200
+    assert r.json()["documents"] == []
+
+def test_upload_document_text(auth_client):
+    client, token = auth_client
+    content = b"# Dynamic Programming\nDynamic programming solves subproblems and caches them."
+    files = {"file": ("dsa_notes.txt", content, "text/plain")}
+    r = client.post("/api/documents/upload", files=files, headers=H(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "success"
+    assert "document" in data
+    assert data["document"]["filename"] == "dsa_notes.txt"
+
+def test_get_document_details(auth_client):
+    client, token = auth_client
+    content = b"Binary Search is an O(log N) algorithm."
+    files = {"file": ("binary_search.txt", content, "text/plain")}
+    upload_res = client.post("/api/documents/upload", files=files, headers=H(token))
+    doc_id = upload_res.json()["document"]["id"]
+
+    r = client.get(f"/api/documents/{doc_id}", headers=H(token))
+    assert r.status_code == 200
+    data = r.json()
+    assert data["id"] == doc_id
+    assert len(data["topics"]) >= 1
+
+def test_delete_document(auth_client):
+    client, token = auth_client
+    content = b"Graph BFS and DFS traversals."
+    files = {"file": ("graphs.txt", content, "text/plain")}
+    upload_res = client.post("/api/documents/upload", files=files, headers=H(token))
+    doc_id = upload_res.json()["document"]["id"]
+
+    del_res = client.delete(f"/api/documents/{doc_id}", headers=H(token))
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "deleted"
+
+    # Confirm 404 after deletion
+    r = client.get(f"/api/documents/{doc_id}", headers=H(token))
+    assert r.status_code == 404
+
+def test_upload_invalid_file_type(auth_client):
+    client, token = auth_client
+    files = {"file": ("script.py", b"print('hello')", "text/x-python")}
+    r = client.post("/api/documents/upload", files=files, headers=H(token))
+    assert r.status_code == 400

@@ -9,6 +9,7 @@ from routes.reminders import router as reminders_router
 from routes.websocket import router as ws_router
 from routes.goals     import router as goals_router
 from routes.kg        import router as kg_router
+from routes.documents import router as documents_router
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,6 +51,7 @@ app.include_router(tasks_router,     prefix="/api/tasks",     tags=["Tasks"])
 app.include_router(stats_router,     prefix="/api/stats",     tags=["Stats"])
 app.include_router(reminders_router, prefix="/api/reminders", tags=["Reminders"])
 app.include_router(kg_router,        prefix="/api/kg",        tags=["Knowledge Graph"])
+app.include_router(documents_router, prefix="/api/documents", tags=["Documents & Hybrid RAG"])
 app.include_router(ws_router,        prefix="/ws",            tags=["WebSocket"])
 
 

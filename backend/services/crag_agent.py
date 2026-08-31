@@ -118,8 +118,8 @@ def extract_entities_node(state: AgentState) -> AgentState:
 
 
 def retrieve_context_node(state: AgentState) -> AgentState:
-    """Build a markdown context brief from the KG and count nodes used."""
-    context_md, node_count = build_context_md(state["user_id"])
+    """Build a hybrid markdown context brief from the KG + Document Knowledge Base."""
+    context_md, node_count = build_context_md(state["user_id"], query=state.get("query", ""))
     return {**state, "context_md": context_md, "kg_nodes_used": node_count}
 
 
