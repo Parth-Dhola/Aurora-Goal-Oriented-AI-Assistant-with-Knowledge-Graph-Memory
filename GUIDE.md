@@ -236,8 +236,9 @@ Key variables:
 #### A. Run Backend API Server
 ```bash
 cd backend
-uvicorn app:app --reload --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
+> **Note on `--host 0.0.0.0`**: Binding to `0.0.0.0` allows devices on your local network (e.g. an Android phone on the same Wi-Fi) to connect to `http://<YOUR_LOCAL_IP>:8000`.
 - Interactive Swagger docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 - Health check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 

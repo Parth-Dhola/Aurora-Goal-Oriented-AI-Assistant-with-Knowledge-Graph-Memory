@@ -1,10 +1,11 @@
 """
-Aurora Android App — Robust URL Auto-Prefixing + Cross-Platform UI Rendering + Hybrid GraphRAG
+Aurora Android App — Markdown Formatter + Soft-Keyboard Avoidance + Multi-Theme
 Run: python main.py
 Build APK: buildozer android debug
 """
 import os
 import sys
+import re
 import threading
 import json
 import requests
@@ -29,6 +30,9 @@ try:
     WS_AVAILABLE = True
 except ImportError:
     WS_AVAILABLE = False
+
+# Enable Android soft keyboard pan / resize mode
+Window.softinput_mode = "below_target"
 
 # ── Config & Server URL Management ───────────────────────────────────────────
 CONFIG_FILE = Path(os.path.expanduser("~")) / ".aurora_app_config.json"
@@ -76,6 +80,43 @@ def get_ws_base() -> str:
 
 
 SESSION_ID = "android-session"
+
+
+def render_markdown_for_kivy(text: str) -> str:
+    """
+    Parses LLM Markdown (headings, bold, lists, wikilinks, code blocks)
+    into clean, readable Kivy markup without raw markdown symbols (*, #).
+    """
+    if not text:
+        return ""
+
+    # Replace square brackets to prevent Kivy BBCode parse breaks
+    text = text.replace("&", "&amp;").replace("[[", "(").replace("]]", ")")
+
+    # Convert Markdown Headings (# Header, ## Header, ### Header) to Bold
+    text = re.sub(r'(?m)^#{1,6}\s*(.+)$', r'[b]\1[/b]', text)
+
+    # Convert **bold** or __bold__ to [b]bold[/b]
+    text = re.sub(r'\*\*(.+?)\*\*', r'[b]\1[/b]', text)
+    text = re.sub(r'__(.+?)__', r'[b]\1[/b]', text)
+
+    # Convert *italic* or _italic_ to [i]italic[/i]
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'[i]\1[/i]', text)
+
+    # Convert bullet points (- item or * item) to clean bullet •
+    text = re.sub(r'(?m)^[\*\-]\s+', r'• ', text)
+
+    # Convert numbered lists (1. item)
+    text = re.sub(r'(?m)^(\d+)\.\s+', r'\1. ', text)
+
+    # Clean backtick inline code `code`
+    text = re.sub(r'`([^`]+)`', r'[b]\1[/b]', text)
+
+    # Clean multi-line code fences
+    text = re.sub(r'```[a-zA-Z]*\n?([\s\S]*?)```', r'\1', text)
+
+    return text.strip()
+
 
 # ── Multi-Theme Palettes ──────────────────────────────────────────────────────
 THEMES = {
@@ -158,7 +199,7 @@ def api_post(endpoint, data, token=None):
     except requests.exceptions.ConnectionError:
         return {
             "error": f"Cannot connect to: {SERVER_URL}\n"
-                     f"Please ensure the backend is running and you entered the correct Wi-Fi IP."
+                     f"Please ensure the backend is running with --host 0.0.0.0 and you entered your Wi-Fi IP."
         }
     except Exception as e:
         return {"error": str(e)}
@@ -167,7 +208,8 @@ def api_post(endpoint, data, token=None):
 class ChatBubble(Label):
     def __init__(self, text, is_user=False, theme_name="aurora", **kwargs):
         super().__init__(**kwargs)
-        self.text = text
+        self.markup = True
+        self.text = text if is_user else render_markdown_for_kivy(text)
         self.size_hint_y = None
         self.text_size = (Window.width * 0.78, None)
         self.halign = "right" if is_user else "left"
@@ -402,7 +444,7 @@ class ChatScreen(Screen):
         self.theme_mode = CURRENT_THEME
         t = THEMES[self.theme_mode]
 
-        root = BoxLayout(orientation="vertical")
+        self.root_layout = BoxLayout(orientation="vertical")
 
         # ── Header ────────────────────────────────────────────────────────────
         header = BoxLayout(size_hint_y=None, height=dp(56), padding=[dp(16), dp(8)], spacing=dp(8))
@@ -440,14 +482,14 @@ class ChatScreen(Screen):
         header.add_widget(self.header_title)
         header.add_widget(self.conn_status)
         header.add_widget(self.theme_btn)
-        root.add_widget(header)
+        self.root_layout.add_widget(header)
 
         # ── Chat area ─────────────────────────────────────────────────────────
         self.chat_layout = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(10), padding=[dp(14), dp(12)])
         self.chat_layout.bind(minimum_height=self.chat_layout.setter("height"))
         self.scroll = ScrollView(size_hint_y=1)
         self.scroll.add_widget(self.chat_layout)
-        root.add_widget(self.scroll)
+        self.root_layout.add_widget(self.scroll)
 
         # ── Suggestion chips ──────────────────────────────────────────────────
         chips_scroll = ScrollView(
@@ -481,7 +523,7 @@ class ChatScreen(Screen):
             self.chip_buttons.append(chip)
             self.chips_row.add_widget(chip)
         chips_scroll.add_widget(self.chips_row)
-        root.add_widget(chips_scroll)
+        self.root_layout.add_widget(chips_scroll)
 
         # ── Input row ─────────────────────────────────────────────────────────
         input_row = BoxLayout(size_hint_y=None, height=dp(64), padding=[dp(8), dp(6)], spacing=dp(6))
@@ -522,8 +564,22 @@ class ChatScreen(Screen):
         input_row.add_widget(self.attach_btn)
         input_row.add_widget(self.text_input)
         input_row.add_widget(self.send_btn)
-        root.add_widget(input_row)
-        self.add_widget(root)
+        self.root_layout.add_widget(input_row)
+
+        # Bottom spacer dynamically expands when Android soft-keyboard appears
+        self.bottom_spacer = Label(size_hint_y=None, height=0)
+        self.root_layout.add_widget(self.bottom_spacer)
+
+        self.add_widget(self.root_layout)
+
+        # Bind keyboard height changes
+        Window.bind(keyboard_height=self._on_keyboard_height)
+
+    def _on_keyboard_height(self, window, height):
+        """Float input box smoothly above Android soft keyboard."""
+        self.bottom_spacer.height = max(0, height)
+        if height > 0:
+            Clock.schedule_once(lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1)
 
     def cycle_theme(self, instance=None):
         """Cycle through: [ Aurora ] -> [ Paper ] -> [ Slate ]."""

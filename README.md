@@ -146,8 +146,8 @@ cp .env.example .env
 cd backend
 pip install -r requirements.txt
 
-# 4. Start backend API
-uvicorn app:app --reload --port 8000
+# 4. Start backend API (--host 0.0.0.0 allows Android phone to connect over Wi-Fi)
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 - Interactive API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
