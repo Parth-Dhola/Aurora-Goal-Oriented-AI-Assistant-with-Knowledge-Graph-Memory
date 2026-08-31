@@ -85,20 +85,20 @@ class ChatScreen(Screen):
         header = BoxLayout(
             size_hint_y=None,
             height=dp(56),
-            padding=[dp(12), dp(8)],
-            spacing=dp(8)
+            padding=[dp(10), dp(8)],
+            spacing=dp(6)
         )
 
         # Left branding block: Status Dot + App Title
         left_block = BoxLayout(
-            size_hint_x=0.40,
-            spacing=dp(8),
+            size_hint_x=0.32,
+            spacing=dp(6),
             pos_hint={"center_y": 0.5}
         )
         self.status_dot = StatusDot(pos_hint={"center_y": 0.5})
         self.header_title = Label(
             text="Aurora",
-            font_size=sp(18),
+            font_size=sp(17),
             bold=True,
             color=t["text_primary"],
             halign="left",
@@ -109,11 +109,11 @@ class ChatScreen(Screen):
         left_block.add_widget(self.status_dot)
         left_block.add_widget(self.header_title)
 
-        # Right control block: Model Switcher + Theme Toggle
+        # Right control block: Model Switcher + Theme Toggle + Logout
         self.model_btn = Button(
             text="[ GEMINI ]",
             size_hint=(None, None),
-            size=(dp(96), dp(36)),
+            size=(dp(84), dp(36)),
             pos_hint={"center_y": 0.5},
             background_color=t["btn_grey"],
             background_normal="",
@@ -126,7 +126,7 @@ class ChatScreen(Screen):
         self.theme_btn = Button(
             text=f"[ {t['name'].upper()} ]",
             size_hint=(None, None),
-            size=(dp(96), dp(36)),
+            size=(dp(84), dp(36)),
             pos_hint={"center_y": 0.5},
             background_color=t["btn_grey"],
             background_normal="",
@@ -136,9 +136,23 @@ class ChatScreen(Screen):
         )
         self.theme_btn.bind(on_press=self.cycle_theme)
 
+        self.logout_btn = Button(
+            text="LOGOUT",
+            size_hint=(None, None),
+            size=(dp(68), dp(36)),
+            pos_hint={"center_y": 0.5},
+            background_color=t["btn_grey"],
+            background_normal="",
+            color=(0.95, 0.40, 0.40, 1),
+            font_size=sp(10),
+            bold=True
+        )
+        self.logout_btn.bind(on_press=self.logout)
+
         header.add_widget(left_block)
         header.add_widget(self.model_btn)
         header.add_widget(self.theme_btn)
+        header.add_widget(self.logout_btn)
         self.root_layout.add_widget(header)
 
         # ── Chat message area ──────────────────────────────────────────────────
@@ -239,6 +253,20 @@ class ChatScreen(Screen):
         if height > 0:
             Clock.schedule_once(lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1)
 
+    def logout(self, instance=None):
+        """Disconnect WebSocket, reset user session and return to Login Screen."""
+        if self.ws:
+            try:
+                self.ws.close()
+            except Exception:
+                pass
+            self.ws = None
+        app = App.get_running_app()
+        app.token = None
+        app.username = None
+        self.chat_layout.clear_widgets()
+        self.manager.current = "login"
+
     def cycle_theme(self, instance=None):
         """Cycle through: [ AURORA ] -> [ PAPER ] -> [ SLATE ]."""
         idx = self.THEME_KEYS.index(self.theme_mode)
@@ -255,6 +283,8 @@ class ChatScreen(Screen):
 
         self.model_btn.background_color = t["btn_grey"]
         self.model_btn.color = t["btn_grey_fg"]
+
+        self.logout_btn.background_color = t["btn_grey"]
 
         self.attach_btn.background_color = t["btn_grey"]
         self.attach_btn.color = t["btn_grey_fg"]
