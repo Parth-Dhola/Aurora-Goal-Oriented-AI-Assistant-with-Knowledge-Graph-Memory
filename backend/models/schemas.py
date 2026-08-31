@@ -88,3 +88,4 @@ class LLMSwitchRequest(BaseModel):
 class LLMStatusResponse(BaseModel):
     current: Dict[str, Any]
     options: List[Dict[str, Any]]
+
