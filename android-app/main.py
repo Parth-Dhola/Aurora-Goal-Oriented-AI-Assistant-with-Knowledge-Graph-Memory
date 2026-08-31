@@ -1,9 +1,12 @@
 """
-Aurora Android App — WebSocket + JWT Auth
+Aurora Android App — WebSocket + JWT Auth + Hybrid GraphRAG Document Upload
 Run: python main.py
 Build APK: buildozer android debug
 """
-import threading, json, requests
+import os
+import threading
+import json
+import requests
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
@@ -11,6 +14,8 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
+from kivy.uix.popup import Popup
+from kivy.uix.filechooser import FileChooserListView
 from kivy.clock import Clock
 from kivy.core.window import Window
 
@@ -120,6 +125,7 @@ class ChatScreen(Screen):
     SUGGESTIONS = [
         ("📋 Plan my day",       "Plan my day. What should I focus on given my current goals?"),
         ("🎯 Show my goals",     "What are my current goals and how am I doing on each?"),
+        ("📚 Search notes",      "Summarize the key concepts from my uploaded notes."),
         ("📊 My progress",       "Give me a progress summary across all my goals."),
         ("📚 What to study?",    "What should I study or work on today?"),
         ("💪 Motivate me",       "Give me a short motivational push for today."),
@@ -168,20 +174,27 @@ class ChatScreen(Screen):
                 color=(0.85, 0.92, 1, 1),
                 font_size=13,
             )
-            # Capture message in closure correctly
             chip.bind(on_press=self._make_chip_handler(message))
             chips_row.add_widget(chip)
         chips_scroll.add_widget(chips_row)
         root.add_widget(chips_scroll)
 
         # ── Input row ─────────────────────────────────────────────────────────
-        input_row = BoxLayout(size_hint_y=None, height=60, padding=[8,6], spacing=8)
+        input_row = BoxLayout(size_hint_y=None, height=60, padding=[8,6], spacing=6)
+        
+        attach_btn = Button(text="📎", size_hint_x=0.14, font_size=20,
+                            background_color=(0.18, 0.22, 0.35, 1), background_normal="")
+        attach_btn.bind(on_press=self.open_file_picker)
+
         self.text_input = TextInput(hint_text="Message Aurora...", multiline=False,
-            size_hint_x=0.82, background_color=GREY, foreground_color=(1,1,1,1), padding=[12,12])
+            size_hint_x=0.72, background_color=GREY, foreground_color=(1,1,1,1), padding=[12,12])
         self.text_input.bind(on_text_validate=self.send_message)
-        send_btn = Button(text="➤", size_hint_x=0.18, font_size=22,
+
+        send_btn = Button(text="➤", size_hint_x=0.14, font_size=20,
                           background_color=BLUE, background_normal="")
         send_btn.bind(on_press=self.send_message)
+
+        input_row.add_widget(attach_btn)
         input_row.add_widget(self.text_input)
         input_row.add_widget(send_btn)
         root.add_widget(input_row)
@@ -191,10 +204,75 @@ class ChatScreen(Screen):
         """Return a closure that sends `message` when a chip is tapped."""
         def handler(instance):
             self.text_input.text = message
-            # Auto-send
             Clock.schedule_once(lambda dt: self.send_message(instance), 0.05)
         return handler
 
+    def open_file_picker(self, instance):
+        """Open a file chooser popup to upload PDF / TXT study materials into the KG."""
+        content = BoxLayout(orientation="vertical", spacing=10, padding=10)
+        filechooser = FileChooserListView(
+            path=os.path.expanduser("~"),
+            filters=["*.pdf", "*.txt", "*.PDF", "*.TXT"]
+        )
+        content.add_widget(filechooser)
+
+        btn_bar = BoxLayout(size_hint_y=None, height=44, spacing=10)
+        cancel_btn = Button(text="Cancel", background_color=GREY, background_normal="")
+        upload_btn = Button(text="Upload to KG 🚀", background_color=BLUE, background_normal="")
+
+        popup = Popup(
+            title="Select Study PDF or Notes",
+            content=content,
+            size_hint=(0.92, 0.85),
+            background_color=(0.1, 0.1, 0.2, 1)
+        )
+        cancel_btn.bind(on_press=popup.dismiss)
+
+        def do_upload(btn_instance):
+            selected = filechooser.selection
+            if not selected:
+                return
+            popup.dismiss()
+            filepath = selected[0]
+            self.upload_file(filepath)
+
+        upload_btn.bind(on_press=do_upload)
+        btn_bar.add_widget(cancel_btn)
+        btn_bar.add_widget(upload_btn)
+        content.add_widget(btn_bar)
+
+        popup.open()
+
+    def upload_file(self, filepath):
+        """Upload selected document in background thread."""
+        filename = os.path.basename(filepath)
+        self.add_bubble(f"📄 Uploading '{filename}' into Knowledge Graph...", True)
+
+        def _worker():
+            app = App.get_running_app()
+            try:
+                with open(filepath, "rb") as f:
+                    file_bytes = f.read()
+                files = {"file": (filename, file_bytes, "application/pdf" if filename.lower().endswith(".pdf") else "text/plain")}
+                r = requests.post(
+                    f"{API_BASE}/documents/upload",
+                    files=files,
+                    headers={"Authorization": f"Bearer {app.token}"},
+                    timeout=60
+                )
+                if r.status_code == 200:
+                    data = r.json().get("document", {})
+                    topics = data.get("topics_created", 1)
+                    title = data.get("title", filename)
+                    msg = f"✅ '{title}' structured into {topics} topic notes & linked into your Knowledge Graph!"
+                    Clock.schedule_once(lambda dt: self.add_bubble(msg, False), 0)
+                else:
+                    err = r.json().get("detail", "Upload failed")
+                    Clock.schedule_once(lambda dt: self.add_bubble(f"⚠️ Upload failed: {err}", False), 0)
+            except Exception as e:
+                Clock.schedule_once(lambda dt: self.add_bubble(f"⚠️ Upload error: {str(e)}", False), 0)
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def on_enter_setup(self):
         app = App.get_running_app()

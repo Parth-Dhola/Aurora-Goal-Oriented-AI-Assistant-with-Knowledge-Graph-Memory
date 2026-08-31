@@ -398,6 +398,96 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
+# ── Documents ──────────────────────────────────────────────────────────────────
+async def handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle incoming PDF/TXT files sent directly to the Telegram bot."""
+    tid = update.effective_user.id
+    token = _get_token(tid)
+    if not token:
+        await update.message.reply_text(
+            "🔒 Please log in first with /login to upload study documents.",
+            parse_mode="Markdown"
+        )
+        return
+
+    doc = update.message.document
+    filename = doc.file_name or "document.pdf"
+    if not filename.lower().endswith((".pdf", ".txt")):
+        await update.message.reply_text("⚠️ Please send a `.pdf` or `.txt` document.")
+        return
+
+    status_msg = await update.message.reply_text(
+        f"⏳ Processing *{filename}*...\nDecomposing topics into Knowledge Graph & Obsidian notes...",
+        parse_mode="Markdown"
+    )
+
+    try:
+        tg_file = await doc.get_file()
+        file_bytes = await tg_file.download_as_bytearray()
+
+        files = {"file": (filename, bytes(file_bytes), "application/pdf" if filename.endswith(".pdf") else "text/plain")}
+        r = requests.post(
+            f"{API_BASE}/documents/upload",
+            files=files,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=60
+        )
+
+        if r.status_code == 200:
+            data = r.json().get("document", {})
+            title = data.get("title", filename)
+            summary = data.get("summary", "")
+            topics_count = data.get("topics_created", 0)
+
+            reply = (
+                f"✅ *Document Processed & Graph Linked!*\n\n"
+                f"📄 *Title:* {title}\n"
+                f"📝 *Summary:* {summary}\n"
+                f"📚 *Topic Notes Created:* {topics_count} notes with `[[wikilinks]]`\n"
+                f"🔗 *Knowledge Graph:* Connected to your topics and goals!\n\n"
+                f"💡 _You can now ask questions about this document with /ask or in chat!_"
+            )
+            await status_msg.edit_text(reply, parse_mode="Markdown")
+        else:
+            err = r.json().get("detail", r.text[:200])
+            await status_msg.edit_text(f"❌ Upload failed: {err}")
+    except Exception as e:
+        logger.error(f"Document upload error: {e}")
+        await status_msg.edit_text(f"❌ Error processing document: {str(e)}")
+
+
+async def cmd_docs(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """List uploaded study documents."""
+    tid = update.effective_user.id
+    token = _get_token(tid)
+    if not token:
+        await update.message.reply_text("🔒 Please log in first with /login")
+        return
+
+    try:
+        r = requests.get(f"{API_BASE}/documents/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        docs = r.json().get("documents", [])
+        if not docs:
+            await update.message.reply_text(
+                "📄 *No documents uploaded yet.*\n\n"
+                "Send any `.pdf` or `.txt` study material to this chat, and I'll automatically break it down into Knowledge Graph notes!",
+                parse_mode="Markdown"
+            )
+            return
+
+        lines = ["📚 *Your Uploaded Documents:*\n"]
+        for d in docs:
+            lines.append(f"• 📄 *{d['title']}* ({d['filename']})")
+            if d.get("summary"):
+                lines.append(f"  _{d['summary'][:120]}..._")
+            lines.append("")
+
+        lines.append("💡 _Ask anything about these documents using /ask_")
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Could not fetch documents: {e}")
+
+
 # ── /help ──────────────────────────────────────────────────────────────────────
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -408,6 +498,9 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "*AI Chat (CRAG Agent)*\n"
         "/ask <question> — chat with Aurora\n"
         "/plan — plan your day based on your goals\n\n"
+        "*Study Documents (Hybrid RAG)*\n"
+        "/docs — list your uploaded documents\n"
+        "📎 _(Send any .pdf or .txt file directly to upload & structure into KG)_\n\n"
         "*Goals*\n"
         "/goals — list your goals\n"
         "/addgoal <name> [priority] — add a goal\n"
@@ -426,6 +519,7 @@ _COMMANDS = [
     BotCommand("logout",  "🚪 Sign out"),
     BotCommand("ask",     "💬 Ask Aurora anything"),
     BotCommand("plan",    "📋 Plan your day based on your goals"),
+    BotCommand("docs",    "📄 View uploaded study documents"),
     BotCommand("goals",   "🎯 View your active goals"),
     BotCommand("addgoal", "➕ Add a new goal (e.g. /addgoal Lose weight high)"),
     BotCommand("stats",   "📊 Productivity dashboard and KG stats"),
@@ -466,10 +560,12 @@ def main():
     app.add_handler(CommandHandler("logout",  cmd_logout))
     app.add_handler(CommandHandler("ask",     cmd_ask))
     app.add_handler(CommandHandler("plan",    cmd_plan))
+    app.add_handler(CommandHandler("docs",    cmd_docs))
     app.add_handler(CommandHandler("goals",   cmd_goals))
     app.add_handler(CommandHandler("addgoal", cmd_addgoal))
     app.add_handler(CommandHandler("stats",   cmd_stats))
     app.add_handler(CommandHandler("help",    cmd_help))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
     print("[Bot] Aurora Telegram Bot is running. Press Ctrl+C to stop.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
