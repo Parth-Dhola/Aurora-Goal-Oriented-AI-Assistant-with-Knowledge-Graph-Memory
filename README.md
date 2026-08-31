@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED)](https://www.docker.com)
 [![MLflow](https://img.shields.io/badge/mlflow-2.3-0194E2)](https://mlflow.org)
 
-> A stateful GenAI agent built with LangGraph + FastAPI. Uses a SQLite Knowledge Graph and Document Knowledge Base to accumulate structured facts, goals, and study materials, then builds a personalised context brief that guides each Gemini response via a CRAG self-reflection pipeline.
+> A stateful GenAI agent built with LangGraph + FastAPI. Uses a SQLite Knowledge Graph and Document Knowledge Base to accumulate structured facts, goals, and study materials, then builds a personalised context brief that guides each response via a CRAG self-reflection pipeline across **Gemini, OpenAI, Claude, Groq, or Local LLMs (Ollama)**.
 
 ---
 
@@ -25,7 +25,7 @@
 │                        LangGraph Corrective RAG (CRAG) Agent                           │
 │                                                                                        │
 │   ┌───────────────────────┐                                                            │
-│   │ 1. extract_entities   │ ──► Gemini: extract facts/goals/weaknesses ──► SQLite KG   │
+│   │ 1. extract_entities   │ ──► LLM: extract facts/goals/weaknesses ──► SQLite KG      │
 │   └──────────┬────────────┘                                                            │
 │              │                                                                         │
 │              ▼                                                                         │
@@ -35,7 +35,7 @@
 │              │                                                                         │
 │              ▼                                                                         │
 │   ┌───────────────────────┐                                                            │
-│   │ 3. grade_context      │ ──► Gemini Self-Reflection: "Is context relevant?"         │
+│   │ 3. grade_context      │ ──► Self-Reflection Evaluator: "Is context relevant?"      │
 │   └──────────┬────────────┘                                                            │
 │              │                                                                         │
 │       ┌──────┴──────────────┐                                                          │
@@ -89,12 +89,6 @@
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Knowledge Graph & Document Memory
-Every conversation turn and document upload:
-1. **Entity Extraction**: Gemini extracts structured facts, habits, and goals from user messages.
-2. **Hybrid GraphRAG**: PDFs/textbooks are decomposed into deep topic notes with LaTeX formulas and `[[wikilinks]]` in Obsidian, with concepts linked into `kg_nodes` and `kg_edges`.
-3. **Graph Traversal**: Before generating a response, the graph is traversed to construct an enriched, personalized markdown context brief.
-
 ---
 
 ## Features
@@ -102,31 +96,49 @@ Every conversation turn and document upload:
 | Feature | Description |
 |---|---|
 | **CRAG Agent** | 7-node LangGraph StateGraph — extract, retrieve, grade, generate, check groundedness, web search |
+| **Multi-LLM Engine** | Switch seamlessly between **Gemini**, **OpenAI**, **Claude**, **Groq**, or **Local LLMs (Ollama)** |
 | **Hybrid GraphRAG** | Ingests PDFs & textbooks, extracts hierarchical topics, algorithms, and links them to the KG |
 | **Knowledge Graph** | SQLite `kg_nodes` + `kg_edges` — accumulates structured facts, goals, and prerequisites |
 | **Obsidian Vault Sync** | One-click export (`scripts/sync_to_obsidian.py`) creating an interconnected interactive graph in Obsidian |
 | **Telegram Bot** | Full assistant with `/login`, `/ask`, `/goals`, `/docs`, and direct PDF/TXT file upload |
-| **Android App** | Kivy mobile app with **Eye-Care Warm Paper** light & dark themes, WebSockets, and in-app file uploader |
-| **Context Preview & Debug** | `/api/chat/context-preview` endpoint to inspect the exact context brief passed to Gemini |
+| **Modular Android App** | Kivy mobile app with **Aurora Glow**, **Warm Paper**, & **Soft Slate** themes + Storage File Picker |
+| **Context Preview & Debug** | `/api/chat/context-preview` endpoint to inspect the exact context brief passed to LLM |
 | **MLflow Tracking** | Real-time logging of strategy (`graph_hit`, `direct`, `web_fallback`), latency, and KG nodes used |
 | **JWT Authentication** | Secure token-based access and password hashing |
 | **CI/CD Automation** | GitHub Actions running 28 automated tests, multi-arch Docker builds, and cloud APK compilation |
 
 ---
 
-## Tech Stack
+## Multi-LLM Provider Engine
 
-| Layer | Tech |
-|---|---|
-| Agent | LangGraph 0.2 StateGraph + SqliteSaver checkpointer |
-| Backend | FastAPI + Uvicorn (ASGI) |
-| LLM | Google Gemini 3.1 Flash Lite |
-| Memory | SQLite Knowledge Graph (`kg_nodes` + `kg_edges`) + FTS5 Document Chunks |
-| Web Search | DuckDuckGo (no API key required) |
-| Auth | JWT (PyJWT) + SHA-256 password hashing |
-| MLOps | MLflow experiment tracking (strategy benchmarking) |
-| Mobile | Kivy (Android APK with Eye-Care theme) |
-| DevOps | Docker + Docker Compose + GitHub Actions + Nginx |
+Aurora supports multiple LLM providers out of the box via `.env`:
+
+```bash
+# 1. Google Gemini (Default)
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-3.1-flash-lite
+GEMINI_API_KEY=your_key
+
+# 2. OpenAI
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your_key
+
+# 3. Anthropic Claude
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-5-sonnet-20241022
+ANTHROPIC_API_KEY=your_key
+
+# 4. Groq (Ultra-Fast)
+LLM_PROVIDER=groq
+LLM_MODEL=llama-3.3-70b-versatile
+GROQ_API_KEY=your_key
+
+# 5. Local LLM (Ollama, LM Studio, or vLLM — Offline & Private!)
+LLM_PROVIDER=local
+LLM_MODEL=llama3.2
+LOCAL_LLM_URL=http://localhost:11434/v1
+```
 
 ---
 
@@ -140,7 +152,7 @@ cd Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY and SECRET_KEY
+# Edit .env and add your LLM API keys and SECRET_KEY
 
 # 3. Install dependencies
 cd backend
@@ -181,7 +193,7 @@ docker compose up -d --build
 | `/api/kg/export/obsidian` | GET | Yes | Download Obsidian Vault (.zip) |
 | `/api/tasks/` | GET/POST | Yes | List / create tasks |
 | `/api/tasks/{id}` | PATCH/DELETE | Yes | Update / delete task |
-| `/api/stats/` | GET | Yes | Dashboard — tasks, LLM strategy breakdown, KG stats |
+| `/api/stats/` | GET | Yes | Dashboard — tasks, active LLM provider, strategy breakdown, KG stats |
 | `/api/reminders/` | GET/POST | Yes | List / create reminders |
 | `/ws/chat?token=...` | WebSocket | Token in URL | Real-time bidirectional chat |
 | `/docs` | GET | No | Swagger UI documentation |
@@ -196,8 +208,9 @@ cd android-app
 pip install kivy requests websocket-client
 python main.py
 ```
-- Includes **Eye-Care Warm Paper** light & dark themes with one-tap header switcher.
-- Tap `📎` to pick and upload PDFs directly into your Knowledge Graph.
+- Includes **Aurora Glow**, **Warm Paper**, and **Soft Slate** themes with one-tap header switcher.
+- Tap `+ DOC` to pick and upload PDFs from Android storage directly into your Knowledge Graph.
+- Dynamic soft-keyboard avoidance lifts inputs smoothly above the keyboard.
 
 ### Building APK
 1. Push code to GitHub.
@@ -215,7 +228,8 @@ aurora/
 │   ├── bot.py                      # Telegram bot interface
 │   ├── models/database.py          # SQLite schema (users, tasks, chat, KG, docs, llm_logs)
 │   ├── services/
-│   │   ├── crag_agent.py           # LangGraph CRAG StateGraph ← core
+│   │   ├── crag_agent.py           # LangGraph CRAG StateGraph core
+│   │   ├── llm_provider.py         # Universal Multi-LLM provider engine (Gemini, OpenAI, Claude, Groq, Local)
 │   │   ├── document_service.py     # PDF parsing + Deep KG decomposition
 │   │   ├── kg_service.py           # KG entity extraction + graph CRUD
 │   │   ├── context_builder.py      # KG + Document Knowledge → markdown context brief
@@ -235,8 +249,19 @@ aurora/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── android-app/
-│   ├── main.py                     # Kivy UI + Eye-Care themes + file uploader
-│   └── buildozer.spec              # Android APK spec
+│   ├── main.py                     # Clean app entry point
+│   ├── buildozer.spec              # Android APK build spec
+│   ├── core/                       # Core networking & config
+│   │   ├── config.py               # Persistent config & URL normalization
+│   │   └── api.py                  # API requests & document upload
+│   └── ui/                         # Modular UI package
+│       ├── theme.py                # Aurora Glow, Warm Paper & Soft Slate themes
+│       ├── screens/
+│       │   ├── login.py            # Login & server settings screen
+│       │   └── chat.py             # Real-time WebSocket chat screen
+│       └── components/
+│           ├── bubble.py           # Stylized chat bubble with avatar badges & Markdown formatter
+│           └── file_picker.py      # Android storage-aware PDF picker
 ├── .github/workflows/
 │   ├── ci-cd.yml                   # Automated 28-test suite + Docker push
 │   └── build-apk.yml               # Automated Android APK compilation workflow

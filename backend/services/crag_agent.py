@@ -22,10 +22,11 @@ from langgraph.graph import StateGraph, END
 
 from services.context_builder import build_context_md
 from services.kg_service import extract_and_update_kg
+from services.llm_provider import get_llm_provider
 from models.database import DB_PATH
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
 _BASE_SYSTEM = """You are Aurora, a personal AI assistant.
@@ -101,12 +102,12 @@ class AgentState(TypedDict):
 
 # ── Node helpers ───────────────────────────────────────────────────────────────
 def _gemini(prompt: str) -> str:
-    """Single-call wrapper — returns empty string on failure."""
+    """Universal LLM call wrapper — supports Gemini, OpenAI, Claude, Groq, and Local models."""
     try:
-        model = genai.GenerativeModel("gemini-3.1-flash-lite")
-        return model.generate_content(prompt).text.strip()
+        provider = get_llm_provider()
+        return provider.generate(prompt).strip()
     except Exception as e:
-        print(f"[CRAG] Gemini error: {e}")
+        print(f"[CRAG] LLM error: {e}")
         return ""
 
 

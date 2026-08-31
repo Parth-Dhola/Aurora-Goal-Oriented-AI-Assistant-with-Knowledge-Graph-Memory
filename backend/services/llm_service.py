@@ -7,14 +7,14 @@ All route handlers call chat() — nothing else needs to change.
 
 import os
 import hashlib
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
-import google.generativeai as genai
 from models.database import get_db
 from services.crag_agent import run_agent
 from services.mlflow_service import log_agent_run
+from services.llm_provider import get_current_llm_info
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 # ── Chat history (for display / Android app) ───────────────────────────────────
@@ -46,10 +46,10 @@ def clear_history(session_id: str = "default") -> None:
     conn.close()
 
 
-# ── SQLite logging ─────────────────────────────────────────────────────────────
 def _log_to_db(query: str, answer: str, latency_ms: float, strategy: str,
                kg_nodes_used: int, context_relevant: bool,
-               model: str = "gemini-3.1-flash-lite") -> None:
+               model: Optional[str] = None) -> None:
+    active_model  = model or get_current_llm_info()["model"]
     prompt_hash   = hashlib.md5(query.encode()).hexdigest()[:8]
     input_tokens  = len(query.split())
     output_tokens = len(answer.split())

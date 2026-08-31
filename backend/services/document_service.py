@@ -20,14 +20,13 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import pypdf
-import google.generativeai as genai
 from dotenv import load_dotenv
 
 from models.database import get_db
 from services.kg_service import get_or_create_node, add_or_strengthen_edge
+from services.llm_provider import get_llm_provider
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Path to project's Obsidian vault
 _BACKEND_DIR = Path(__file__).parent.parent.resolve()
@@ -156,11 +155,12 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
     )
 
     try:
-        model = genai.GenerativeModel("gemini-3.1-flash-lite")
-        response = model.generate_content(prompt)
-        structured = _parse_json(response.text)
+        provider = get_llm_provider()
+        structured = provider.generate_json(prompt)
+        if not structured or not structured.get("topics"):
+            structured = _parse_json(provider.generate(prompt))
     except Exception as e:
-        print(f"[DocumentService] Gemini decomposition error: {e}")
+        print(f"[DocumentService] LLM decomposition error: {e}")
         clean_name = filename.rsplit(".", 1)[0].replace("_", " ").title()
         structured = {
             "title": clean_name,

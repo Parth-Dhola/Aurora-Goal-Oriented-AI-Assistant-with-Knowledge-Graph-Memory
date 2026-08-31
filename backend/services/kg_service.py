@@ -9,13 +9,11 @@ Handles:
 
 import os
 import json
-import re
-import google.generativeai as genai
 from dotenv import load_dotenv
 from models.database import get_db
+from services.llm_provider import get_llm_provider
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ── Extraction prompt ──────────────────────────────────────────────────────────
 EXTRACTION_PROMPT = '''Analyze the following message and extract structured information.
@@ -198,10 +196,11 @@ def extract_and_update_kg(message: str, user_id: int) -> dict:
     Returns the raw extracted dict for logging.
     """
     try:
-        model = genai.GenerativeModel("gemini-3.1-flash-lite")
+        provider = get_llm_provider()
         prompt = EXTRACTION_PROMPT.format(message=message)
-        response = model.generate_content(prompt)
-        extracted = _parse_json(response.text)
+        extracted = provider.generate_json(prompt)
+        if not extracted:
+            extracted = _parse_json(provider.generate(prompt))
     except Exception as e:
         print(f"[KG] Extraction error: {e}")
         return {"facts": [], "goals": []}

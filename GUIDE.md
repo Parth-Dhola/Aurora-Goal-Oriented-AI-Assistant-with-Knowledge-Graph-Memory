@@ -135,6 +135,7 @@ aurora-final/
 │   │   └── websocket.py              # /ws/chat (Real-time bidirectional chat)
 │   ├── services/
 │   │   ├── crag_agent.py             # LangGraph CRAG StateGraph core
+│   │   ├── llm_provider.py           # Universal Multi-LLM provider engine (Gemini, OpenAI, Claude, Groq, Local)
 │   │   ├── document_service.py       # PDF parsing + Deep KG decomposition
 │   │   ├── kg_service.py             # Entity extraction & SQLite KG CRUD
 │   │   ├── context_builder.py        # KG + Document Knowledge → context brief
@@ -145,8 +146,19 @@ aurora-final/
 │       └── test_api.py               # Complete test suite (28 unit/integration tests)
 │
 ├── android-app/                      # Android Mobile App (Kivy)
-│   ├── main.py                       # App UI, Eye-Care themes, WebSockets & file uploader
-│   └── buildozer.spec                # Android APK build spec
+│   ├── main.py                       # Clean app entry point
+│   ├── buildozer.spec                # Android APK build spec
+│   ├── core/                         # Core networking & config
+│   │   ├── config.py                 # Persistent config & URL normalization
+│   │   └── api.py                    # API requests & document upload
+│   └── ui/                           # Modular UI package
+│       ├── theme.py                  # Aurora Glow, Warm Paper & Soft Slate themes
+│       ├── screens/
+│       │   ├── login.py              # Login & server settings screen
+│       │   └── chat.py               # Real-time WebSocket chat screen
+│       └── components/
+│           ├── bubble.py             # Stylized chat bubble with avatar badges & Markdown formatter
+│           └── file_picker.py        # Android storage-aware PDF picker
 │
 ├── scripts/                          # Automation & Utilities
 │   ├── sync_to_obsidian.py           # One-click KG sync into Obsidian vault
@@ -157,6 +169,39 @@ aurora-final/
     ├── Goals/                        # Goal notes with wikilinks & metadata
     ├── Topics/                       # Topic notes with relationships
     └── Documents/                    # In-depth structured study notes from uploaded PDFs
+```
+
+---
+
+## Multi-LLM Provider Engine
+
+Aurora allows switching between multiple cloud and local LLM providers via `.env`:
+
+```bash
+# 1. Google Gemini (Default)
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-3.1-flash-lite
+GEMINI_API_KEY=your_key
+
+# 2. OpenAI
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your_key
+
+# 3. Anthropic Claude
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-5-sonnet-20241022
+ANTHROPIC_API_KEY=your_key
+
+# 4. Groq (Ultra-Fast Inference)
+LLM_PROVIDER=groq
+LLM_MODEL=llama-3.3-70b-versatile
+GROQ_API_KEY=your_key
+
+# 5. Local LLM (Ollama, LM Studio, or vLLM — Offline & Private!)
+LLM_PROVIDER=local
+LLM_MODEL=llama3.2
+LOCAL_LLM_URL=http://localhost:11434/v1
 ```
 
 ---

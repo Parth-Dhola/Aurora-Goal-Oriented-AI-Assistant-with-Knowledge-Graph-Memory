@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from models.database import get_db
 from services.auth_service import get_current_user
+from services.llm_provider import get_current_llm_info
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -64,6 +65,7 @@ async def get_stats(user: dict = Depends(get_current_user)):
         },
         "chat": {"total_messages": total_msg},
         "llm": {
+            "active_provider": get_current_llm_info(),
             "total_calls":    total_llm,
             "avg_latency_ms": round(raw_lat, 1) if raw_lat else 0,
             "strategies": [
