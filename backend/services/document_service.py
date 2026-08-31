@@ -161,10 +161,13 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
             structured = _parse_json(provider.generate(prompt))
     except Exception as e:
         print(f"[DocumentService] LLM decomposition error: {e}")
+        structured = {}
+
+    if not structured or not structured.get("topics"):
         clean_name = filename.rsplit(".", 1)[0].replace("_", " ").title()
         structured = {
-            "title": clean_name,
-            "summary": "Document uploaded and indexed successfully.",
+            "title": (structured.get("title") if structured else None) or clean_name,
+            "summary": (structured.get("summary") if structured else None) or "Document uploaded and indexed successfully.",
             "topics": [
                 {
                     "topic_name": clean_name,
