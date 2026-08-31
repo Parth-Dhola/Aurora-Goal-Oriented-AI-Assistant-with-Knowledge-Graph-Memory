@@ -46,13 +46,19 @@ def extract_text_from_pdf(pdf_bytes: bytes, filename: str = "") -> Tuple[str, in
 
     try:
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+        total_pages = len(reader.pages)
         pages_text = []
-        for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ""
-            if text.strip():
-                pages_text.append(f"--- [Page {i+1}] ---\n{text}")
+        max_extract = min(total_pages, 100)
+        for i in range(max_extract):
+            try:
+                page = reader.pages[i]
+                text = page.extract_text() or ""
+                if text.strip():
+                    pages_text.append(f"--- [Page {i+1}] ---\n{text}")
+            except Exception:
+                continue
         full_text = "\n\n".join(pages_text)
-        return full_text, max(len(reader.pages), 1)
+        return full_text, max(total_pages, 1)
     except Exception:
         return pdf_bytes.decode("utf-8", errors="ignore"), 1
 
@@ -136,9 +142,9 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
     raw_text, total_pages = extract_text_from_pdf(pdf_bytes, filename=filename)
     file_size = len(pdf_bytes)
 
-    # Sample up to 50,000 characters across document (beginning, middle, end) if large
-    if len(raw_text) > 50000:
-        chunk_size = 16000
+    # Sample up to 20,000 characters across document (beginning, middle, end) if large
+    if len(raw_text) > 20000:
+        chunk_size = 6500
         content_sample = (
             raw_text[:chunk_size] +
             "\n\n... [Middle Sections] ...\n\n" +

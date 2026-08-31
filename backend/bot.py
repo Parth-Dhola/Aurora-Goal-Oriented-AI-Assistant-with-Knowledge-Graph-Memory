@@ -461,7 +461,7 @@ async def handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"{API_BASE}/documents/upload",
             files=files,
             headers={"Authorization": f"Bearer {token}"},
-            timeout=60
+            timeout=180
         )
 
         if r.status_code == 200:

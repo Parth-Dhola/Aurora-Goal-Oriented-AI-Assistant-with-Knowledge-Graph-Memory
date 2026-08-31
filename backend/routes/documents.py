@@ -40,6 +40,12 @@ async def upload_document(
         if len(content) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
+        if len(content) > 50 * 1024 * 1024:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File is too large ({len(content)/(1024*1024):.1f} MB). Maximum allowed size is 50 MB."
+            )
+
         # Process document, create notes, and link into KG
         result = process_and_graph_document(content, file.filename, user["id"])
         return {
