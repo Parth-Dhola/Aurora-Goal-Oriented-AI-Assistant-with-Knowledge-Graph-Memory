@@ -238,22 +238,12 @@ async def login_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-_user_active_sessions: dict[int, str] = {}
-
-def _get_active_session_id(tid: int) -> str:
-    return _user_active_sessions.get(tid, "default")
-
-def _set_active_session_id(tid: int, session_id: str):
-    _user_active_sessions[tid] = session_id
-
-
 # ── /logout ────────────────────────────────────────────────────────────────────
 async def cmd_logout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tid = update.effective_user.id
     session = get_session(tid)
     if session:
         delete_session(tid)
-        _user_active_sessions.pop(tid, None)
         await update.message.reply_text(f"👋 Logged out ({session['username']}). Use /login to sign in again.")
     else:
         await update.message.reply_text("You weren't logged in.")
@@ -271,10 +261,9 @@ async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    active_sess = _get_active_session_id(tid)
     thinking = await update.message.reply_text("🤔 Thinking...")
     result = api("post", "/chat/", token=session["token"],
-                 json_data={"message": question, "session_id": active_sess})
+                 json_data={"message": question, "session_id": f"tg-{tid}"})
     reply = result.get("reply") or result.get("error", "Something went wrong.")
     await thinking.delete()
     # Telegram has 4096 char limit per message
@@ -590,97 +579,6 @@ async def handle_model_switch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"❌ Connection error: {e}")
 
 
-# ── /newchat & /sessions ────────────────────────────────────────────────────────
-@require_auth
-async def cmd_newchat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Start a new chat session."""
-    tid = update.effective_user.id
-    session = get_session(tid)
-    title = " ".join(ctx.args).strip() or None
-
-    try:
-        res = api("post", "/sessions/", token=session["token"], json_data={"title": title})
-        sess = res.get("session", {})
-        sess_id = sess.get("session_id", "default")
-        sess_title = sess.get("title", "New Chat")
-        _set_active_session_id(tid, sess_id)
-
-        await update.message.reply_text(
-            f"✨ *Started New Chat Session!*\n\n"
-            f"• Title: *{sess_title}*\n"
-            f"• Session ID: `{sess_id}`\n\n"
-            f"Send /ask to start chatting in this thread!",
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"Create session error: {e}")
-        await update.message.reply_text(f"❌ Error creating session: {e}")
-
-
-@require_auth
-async def cmd_sessions(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """List available chat sessions with inline switch buttons."""
-    tid = update.effective_user.id
-    session = get_session(tid)
-    active_sess = _get_active_session_id(tid)
-
-    try:
-        res = api("get", "/sessions/", token=session["token"])
-        sessions_list = res.get("sessions", [])
-        if not sessions_list:
-            await update.message.reply_text("No chat sessions found. Use /newchat to start one!")
-            return
-
-        buttons = []
-        for s in sessions_list[:8]:
-            sid = s.get("session_id")
-            title = s.get("title", sid)[:24]
-            count = s.get("message_count", 0)
-            is_active = (sid == active_sess)
-            prefix = "🟢 " if is_active else "💬 "
-            btn_text = f"{prefix}{title} ({count})"
-            buttons.append([InlineKeyboardButton(btn_text, callback_data=f"sess:switch:{sid}")])
-
-        buttons.append([InlineKeyboardButton("➕ + New Chat", callback_data="sess:new")])
-        keyboard = InlineKeyboardMarkup(buttons)
-
-        await update.message.reply_text(
-            "🗂 *Your Chat Sessions*\n\n"
-            f"Currently active thread: `{active_sess}`\n\n"
-            "Tap an option below to switch threads:",
-            reply_markup=keyboard,
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"List sessions error: {e}")
-        await update.message.reply_text(f"❌ Error retrieving sessions: {e}")
-
-
-async def handle_session_action(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Handle inline button click for switching/creating chat sessions."""
-    query = update.callback_query
-    await query.answer()
-
-    tid = update.effective_user.id
-    session = get_session(tid)
-    if not session:
-        await query.edit_message_text("🔒 Session expired. Please log in with /login")
-        return
-
-    data = query.data
-    if data == "sess:new":
-        res = api("post", "/sessions/", token=session["token"], json_data={})
-        sess = res.get("session", {})
-        sid = sess.get("session_id", "default")
-        stitle = sess.get("title", "New Chat")
-        _set_active_session_id(tid, sid)
-        await query.edit_message_text(f"✨ Switched to brand new thread: *{stitle}* (`{sid}`)", parse_mode="Markdown")
-    elif data.startswith("sess:switch:"):
-        sid = data.replace("sess:switch:", "")
-        _set_active_session_id(tid, sid)
-        await query.edit_message_text(f"🟢 Active chat session switched to: `{sid}`!\nSend /ask to continue.", parse_mode="Markdown")
-
-
 # ── /help ──────────────────────────────────────────────────────────────────────
 async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -688,10 +586,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "*Auth*\n"
         "/login — connect your Aurora account\n"
         "/logout — sign out\n\n"
-        "*AI Chat & Multi-Sessions*\n"
+        "*AI Chat & Models*\n"
         "/ask <question> — chat with Aurora\n"
-        "/newchat [title] — start a fresh chat thread\n"
-        "/sessions — list and switch between chat sessions\n"
         "/plan — plan your day based on your goals\n"
         "/model — switch AI model (Local, Gemini, OpenAI, Groq, Claude)\n\n"
         "*Study Documents (Hybrid RAG)*\n"
@@ -699,7 +595,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "📎 _(Send any .pdf or .txt file directly to upload & structure into KG)_\n\n"
         "*Goals*\n"
         "/goals — list your goals\n"
-        "/addgoal <name> [priority] — add a goal\n\n"
+        "/addgoal <name> [priority] — add a goal\n"
+        "_(Aurora also extracts goals from your chat messages automatically)_\n\n"
         "*Stats*\n"
         "/stats — productivity dashboard\n\n"
         "/help — this message",
@@ -709,19 +606,17 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── Command suggestions (shown when user types /) ──────────────────────────────
 _COMMANDS = [
-    BotCommand("start",    "👋 Welcome and login status"),
-    BotCommand("login",    "🔐 Connect your Aurora account"),
-    BotCommand("logout",   "🚪 Sign out"),
-    BotCommand("ask",      "💬 Ask Aurora anything"),
-    BotCommand("newchat",  "✨ Start a fresh chat session/thread"),
-    BotCommand("sessions", "🗂 List and switch chat sessions"),
-    BotCommand("plan",     "📋 Plan your day based on your goals"),
-    BotCommand("model",    "⚙️ Switch AI model (Local, Gemini, OpenAI, Groq)"),
-    BotCommand("docs",     "📄 View uploaded study documents"),
-    BotCommand("goals",    "🎯 View your active goals"),
-    BotCommand("addgoal",  "➕ Add a new goal (e.g. /addgoal Lose weight high)"),
-    BotCommand("stats",    "📊 Productivity dashboard and KG stats"),
-    BotCommand("help",     "❓ List all commands"),
+    BotCommand("start",   "👋 Welcome and login status"),
+    BotCommand("login",   "🔐 Connect your Aurora account"),
+    BotCommand("logout",  "🚪 Sign out"),
+    BotCommand("ask",     "💬 Ask Aurora anything"),
+    BotCommand("plan",    "📋 Plan your day based on your goals"),
+    BotCommand("model",   "⚙️ Switch AI model (Local, Gemini, OpenAI, Groq)"),
+    BotCommand("docs",    "📄 View uploaded study documents"),
+    BotCommand("goals",   "🎯 View your active goals"),
+    BotCommand("addgoal", "➕ Add a new goal (e.g. /addgoal Lose weight high)"),
+    BotCommand("stats",   "📊 Productivity dashboard and KG stats"),
+    BotCommand("help",    "❓ List all commands"),
 ]
 
 
@@ -754,21 +649,18 @@ def main():
     )
 
     app.add_handler(login_conv)
-    app.add_handler(CommandHandler("start",    cmd_start))
-    app.add_handler(CommandHandler("logout",   cmd_logout))
-    app.add_handler(CommandHandler("ask",      cmd_ask))
-    app.add_handler(CommandHandler("newchat",  cmd_newchat))
-    app.add_handler(CommandHandler("sessions", cmd_sessions))
-    app.add_handler(CommandHandler("plan",     cmd_plan))
-    app.add_handler(CommandHandler("model",    cmd_model))
-    app.add_handler(CommandHandler("llm",      cmd_model))
-    app.add_handler(CommandHandler("docs",     cmd_docs))
-    app.add_handler(CommandHandler("goals",    cmd_goals))
-    app.add_handler(CommandHandler("addgoal",  cmd_addgoal))
-    app.add_handler(CommandHandler("stats",    cmd_stats))
-    app.add_handler(CommandHandler("help",     cmd_help))
+    app.add_handler(CommandHandler("start",   cmd_start))
+    app.add_handler(CommandHandler("logout",  cmd_logout))
+    app.add_handler(CommandHandler("ask",     cmd_ask))
+    app.add_handler(CommandHandler("plan",    cmd_plan))
+    app.add_handler(CommandHandler("model",   cmd_model))
+    app.add_handler(CommandHandler("llm",     cmd_model))
+    app.add_handler(CommandHandler("docs",    cmd_docs))
+    app.add_handler(CommandHandler("goals",   cmd_goals))
+    app.add_handler(CommandHandler("addgoal", cmd_addgoal))
+    app.add_handler(CommandHandler("stats",   cmd_stats))
+    app.add_handler(CommandHandler("help",    cmd_help))
     app.add_handler(CallbackQueryHandler(handle_model_switch, pattern="^llm:"))
-    app.add_handler(CallbackQueryHandler(handle_session_action, pattern="^sess:"))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
     print("[Bot] Aurora Telegram Bot is running. Press Ctrl+C to stop.")

@@ -1,5 +1,5 @@
 """
-ui/screens/chat.py — Real-Time Chat, Multi-Session Threads & Dynamic LLM Switcher for Aurora
+ui/screens/chat.py — Real-Time Chat, Dynamic LLM Switcher & Document Ingestion Screen for Aurora
 """
 import os
 import threading
@@ -24,7 +24,7 @@ try:
 except ImportError:
     WS_AVAILABLE = False
 
-from core.config import CURRENT_THEME, get_ws_base, set_theme
+from core.config import CURRENT_THEME, SESSION_ID, get_ws_base, set_theme
 from core.api import api_upload_document, api_post, api_get
 from ui.theme import THEMES
 from ui.components.bubble import ChatBubble
@@ -86,7 +86,6 @@ class ChatScreen(Screen):
         self.thinking_bubble = None
         self.theme_mode = CURRENT_THEME
         self.active_llm = "gemini"
-        self.session_id = "default"
         self.available_options = []
         t = THEMES[self.theme_mode]
 
@@ -96,20 +95,20 @@ class ChatScreen(Screen):
         header = BoxLayout(
             size_hint_y=None,
             height=dp(56),
-            padding=[dp(6), dp(8)],
-            spacing=dp(5)
+            padding=[dp(8), dp(8)],
+            spacing=dp(6)
         )
 
         # Left branding block: Status Dot + App Title
         left_block = BoxLayout(
-            size_hint_x=0.24,
-            spacing=dp(5),
+            size_hint_x=0.28,
+            spacing=dp(6),
             pos_hint={"center_y": 0.5}
         )
         self.status_dot = StatusDot(pos_hint={"center_y": 0.5})
         self.header_title = Label(
             text="Aurora",
-            font_size=sp(15),
+            font_size=sp(16),
             bold=True,
             color=t["text_primary"],
             halign="left",
@@ -120,25 +119,14 @@ class ChatScreen(Screen):
         left_block.add_widget(self.status_dot)
         left_block.add_widget(self.header_title)
 
-        # Right control block: Sessions + Model Switcher + Theme Toggle + Logout
-        self.sessions_btn = IconButton(
-            icon_name="chat_threads",
-            text="CHATS",
-            bg_color=t["btn_grey"],
-            fg_color=t["btn_grey_fg"],
-            size_hint=(None, None),
-            size=(dp(84), dp(36)),
-            pos_hint={"center_y": 0.5}
-        )
-        self.sessions_btn.bind(on_press=self.open_sessions_picker)
-
+        # Right control block: Model Switcher + Theme Toggle + Logout
         self.model_btn = IconButton(
             icon_name="llm_gemini",
             text="GEMINI",
             bg_color=t["btn_grey"],
             fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(88), dp(36)),
+            size=(dp(96), dp(36)),
             pos_hint={"center_y": 0.5}
         )
         self.model_btn.bind(on_press=self.open_model_picker)
@@ -149,7 +137,7 @@ class ChatScreen(Screen):
             bg_color=t["btn_grey"],
             fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(88), dp(36)),
+            size=(dp(96), dp(36)),
             pos_hint={"center_y": 0.5}
         )
         self.theme_btn.bind(on_press=self.cycle_theme)
@@ -160,13 +148,12 @@ class ChatScreen(Screen):
             bg_color=t["btn_grey"],
             fg_color=(0.95, 0.40, 0.40, 1),
             size_hint=(None, None),
-            size=(dp(84), dp(36)),
+            size=(dp(88), dp(36)),
             pos_hint={"center_y": 0.5}
         )
         self.logout_btn.bind(on_press=self.logout)
 
         header.add_widget(left_block)
-        header.add_widget(self.sessions_btn)
         header.add_widget(self.model_btn)
         header.add_widget(self.theme_btn)
         header.add_widget(self.logout_btn)
@@ -298,7 +285,6 @@ class ChatScreen(Screen):
         self.theme_btn.set_text(t["name"].upper())
         self.theme_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
 
-        self.sessions_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
         self.model_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
         self.logout_btn.set_colors(t["btn_grey"], (0.95, 0.40, 0.40, 1))
 
@@ -311,127 +297,12 @@ class ChatScreen(Screen):
             chip.background_color = t["chip_bg"]
             chip.color = t["chip_fg"]
 
-    def open_sessions_picker(self, instance=None):
-        """Open popup displaying user chat threads and + Start New Chat."""
-        t = THEMES[self.theme_mode]
-        app = App.get_running_app()
-
-        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
-
-        title = Label(
-            text="Chat Sessions & Threads",
-            font_size=sp(16),
-            bold=True,
-            size_hint_y=None,
-            height=dp(28),
-            color=t["text_primary"]
-        )
-        content.add_widget(title)
-
-        popup = Popup(
-            title="Chat Threads",
-            content=content,
-            size_hint=(0.92, 0.72),
-            background_color=t["header_bg"]
-        )
-
-        def switch_session(sid, stitle):
-            popup.dismiss()
-            self.session_id = sid
-            self.chat_layout.clear_widgets()
-            self.add_bubble(f"Loaded chat thread '{stitle}'!", is_user=False)
-            
-            def _worker():
-                res = api_get(f"/sessions/{sid}/messages", token=app.token)
-                msgs = res.get("messages", [])
-                def _render_msgs(dt):
-                    for m in msgs:
-                        is_usr = (m.get("role") == "user")
-                        self.add_bubble(m.get("content", ""), is_user=is_usr)
-                Clock.schedule_once(_render_msgs, 0)
-            
-            threading.Thread(target=_worker, daemon=True).start()
-
-        def create_new_session():
-            popup.dismiss()
-            def _worker():
-                res = api_post("/sessions/", {}, token=app.token)
-                sess = res.get("session", {})
-                sid = sess.get("session_id", "default")
-                stitle = sess.get("title", "New Chat")
-                def _apply(dt):
-                    self.session_id = sid
-                    self.chat_layout.clear_widgets()
-                    self.add_bubble(f"Started fresh thread '{stitle}'! How can I help you today?", is_user=False)
-                Clock.schedule_once(_apply, 0)
-            threading.Thread(target=_worker, daemon=True).start()
-
-        # + New Chat Button
-        new_btn = Button(
-            text="+ Start New Chat",
-            size_hint_y=None,
-            height=dp(44),
-            background_color=t["btn_primary"],
-            background_normal="",
-            color=(1, 1, 1, 1),
-            font_size=sp(13),
-            bold=True
-        )
-        new_btn.bind(on_press=lambda inst: create_new_session())
-        content.add_widget(new_btn)
-
-        # Scrollable session list
-        sess_scroll = ScrollView(size_hint_y=1)
-        sess_box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(6))
-        sess_box.bind(minimum_height=sess_box.setter("height"))
-
-        def _fetch_sessions():
-            res = api_get("/sessions/", token=app.token)
-            sessions = res.get("sessions", [])
-            def _populate(dt):
-                for s in sessions:
-                    sid = s.get("session_id")
-                    stitle = s.get("title", sid)
-                    count = s.get("message_count", 0)
-                    is_curr = (sid == self.session_id)
-                    btn = Button(
-                        text=f"{'🟢 ' if is_curr else '💬 '}{stitle} ({count} msgs)",
-                        size_hint_y=None,
-                        height=dp(42),
-                        background_color=t["btn_primary"] if is_curr else t["chip_bg"],
-                        background_normal="",
-                        color=(1, 1, 1, 1) if is_curr else t["chip_fg"],
-                        font_size=sp(12),
-                        bold=is_curr
-                    )
-                    btn.bind(on_press=lambda inst, sid_val=sid, title_val=stitle: switch_session(sid_val, title_val))
-                    sess_box.add_widget(btn)
-            Clock.schedule_once(_populate, 0)
-
-        threading.Thread(target=_fetch_sessions, daemon=True).start()
-
-        sess_scroll.add_widget(sess_box)
-        content.add_widget(sess_scroll)
-
-        close_btn = Button(
-            text="Close",
-            size_hint_y=None,
-            height=dp(38),
-            background_color=t["btn_grey"],
-            background_normal="",
-            color=t["btn_grey_fg"],
-            font_size=sp(12)
-        )
-        close_btn.bind(on_press=popup.dismiss)
-        content.add_widget(close_btn)
-
-        popup.open()
-
     def open_model_picker(self, instance):
         """Open popup displaying ONLY available/configured LLM options."""
         t = THEMES[self.theme_mode]
         app = App.get_running_app()
 
+        # Retrieve fresh options from server
         try:
             res = api_get("/llm/", token=app.token)
             if "options" in res:
@@ -478,6 +349,7 @@ class ChatScreen(Screen):
             
             threading.Thread(target=_worker, daemon=True).start()
 
+        # Show only configured options
         configured_models = [opt for opt in self.available_options if opt.get("configured")]
         if not configured_models:
             configured_models = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite"}]
@@ -637,7 +509,7 @@ class ChatScreen(Screen):
         self.add_bubble(msg, is_user=True)
         if self.ws:
             try:
-                self.ws.send(json.dumps({"message": msg, "session_id": self.session_id}))
+                self.ws.send(json.dumps({"message": msg, "session_id": SESSION_ID}))
             except Exception as e:
                 self.add_bubble(f"Send failed: {e}", is_user=False)
         else:

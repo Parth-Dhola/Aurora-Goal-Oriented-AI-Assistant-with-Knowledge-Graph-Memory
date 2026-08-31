@@ -322,28 +322,3 @@ def test_switch_llm_provider(auth_client):
     data = r.json()
     assert data["status"] == "success"
     assert data["current"]["provider"] == "gemini"
-
-
-def test_sessions_crud(auth_client):
-    client, token = auth_client
-    # 1. Get initial sessions
-    r = client.get("/api/sessions/", headers=H(token))
-    assert r.status_code == 200
-    assert "sessions" in r.json()
-    assert len(r.json()["sessions"]) >= 1
-
-    # 2. Create a new session
-    r2 = client.post("/api/sessions/", json={"title": "DSA Study Thread"}, headers=H(token))
-    assert r2.status_code == 200
-    sess_id = r2.json()["session"]["session_id"]
-    assert sess_id is not None
-
-    # 3. Get session messages
-    r3 = client.get(f"/api/sessions/{sess_id}/messages", headers=H(token))
-    assert r3.status_code == 200
-    assert "messages" in r3.json()
-
-    # 4. Delete session
-    r4 = client.delete(f"/api/sessions/{sess_id}", headers=H(token))
-    assert r4.status_code == 200
-    assert r4.json()["status"] == "deleted"

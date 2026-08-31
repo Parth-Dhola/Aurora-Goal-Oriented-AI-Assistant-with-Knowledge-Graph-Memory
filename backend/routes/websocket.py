@@ -1,7 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from services.llm_service import chat
 from services.auth_service import verify_token
-from services.session_service import touch_session
 import json
 
 router = APIRouter()
@@ -47,7 +46,6 @@ async def websocket_chat(websocket: WebSocket, token: str = Query(...)):
             session_id = data.get("session_id", f"ws-{user_id}")
             if not user_message:
                 continue
-            touch_session(user_id, session_id, auto_title_from_msg=user_message)
             await websocket.send_json({"type": "thinking"})
             try:
                 reply = chat(user_message, session_id, user_id=user_id)
