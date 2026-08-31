@@ -1,5 +1,13 @@
-from fastapi import FastAPI
+"""
+app.py — Main FastAPI Application Entrypoint for Aurora AI Assistant
+"""
+import time
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+from config import settings
 from models.database import init_db
 from routes.auth      import router as auth_router
 from routes.chat      import router as chat_router
@@ -11,40 +19,57 @@ from routes.goals     import router as goals_router
 from routes.kg        import router as kg_router
 from routes.documents import router as documents_router
 from routes.llm       import router as llm_router
-from dotenv import load_dotenv
 
-load_dotenv()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Production lifespan event handler replacing deprecated @app.on_event."""
+    print(f"[{settings.APP_NAME}] Initializing database tables and Knowledge Graph...")
+    init_db()
+    print(f"[{settings.APP_NAME}] System initialized successfully!")
+    print(f"[{settings.APP_NAME}] API Docs: http://localhost:{settings.PORT}/docs")
+    yield
+    print(f"[{settings.APP_NAME}] Graceful shutdown complete.")
+
 
 app = FastAPI(
-    title="Aurora AI Assistant",
+    title=settings.APP_NAME,
     description="""
 Personal AI assistant with goal-aware Knowledge Graph memory powered by LangGraph + Gemini.
 
-## How to use the docs
-1. **Register** → `POST /api/auth/register` with any username + password
-2. **Copy** the `access_token` from the response
-3. **Click** the 🔒 Authorize button → enter `Bearer <your_token>`
-4. All protected endpoints now work!
-
-## Set a goal explicitly
-`POST /api/goals` with `{"label": "Lose Weight", "priority": "high", "target": "10kg", "deadline": "December 2026"}`
-
-## Or just chat — Aurora extracts goals automatically
-`POST /api/chat/` → `{"message": "I really want to improve my typing speed"}`
-
-## WebSocket (real-time chat)
-`ws://localhost:8000/ws/chat?token=YOUR_TOKEN`
+## Features & APIs
+- **Auth**: Register and authenticate with JWT bearer tokens (`/api/auth`)
+- **Chat**: Corrective RAG (CRAG) cyclical reasoning agent (`/api/chat`, `/ws/chat`)
+- **Knowledge Graph**: Node and edge relationships with Obsidian sync (`/api/kg`)
+- **Documents**: Deep Hybrid GraphRAG decomposition for PDFs and notes (`/api/documents`)
+- **Multi-LLM**: Dynamic runtime AI brain switcher (`/api/llm`)
+- **Goals & Tasks**: Personal goal hierarchy and task progress tracking (`/api/goals`, `/api/tasks`)
     """,
-    version="3.0.0",
+    version=settings.VERSION,
+    lifespan=lifespan,
 )
 
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    """Production performance middleware: tracks request latency and adds X-Process-Time header."""
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+    return response
+
+
+# Include modular route controllers
 app.include_router(auth_router,      prefix="/api/auth",      tags=["Auth"])
 app.include_router(chat_router,      prefix="/api/chat",      tags=["Chat"])
 app.include_router(goals_router,     prefix="/api/goals",     tags=["Goals"])
@@ -57,14 +82,13 @@ app.include_router(llm_router,       prefix="/api/llm",       tags=["LLM Provide
 app.include_router(ws_router,        prefix="/ws",            tags=["WebSocket"])
 
 
-@app.on_event("startup")
-async def startup():
-    print("[Aurora] Starting up...")
-    init_db()
-    print("[Aurora] Ready!")
-    print("[Aurora] Docs → http://localhost:8000/docs")
-
-
 @app.get("/api/health", tags=["Health"])
 async def health():
-    return {"status": "ok", "app": "Aurora", "version": "3.0.0"}
+    """Health check endpoint for Docker container orchestration and load balancers."""
+    return {
+        "status": "ok",
+        "app": settings.APP_NAME,
+        "version": settings.VERSION,
+        "environment": settings.ENVIRONMENT,
+        "active_provider": settings.DEFAULT_PROVIDER
+    }
