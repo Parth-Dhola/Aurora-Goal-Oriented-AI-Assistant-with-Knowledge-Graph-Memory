@@ -59,14 +59,14 @@ class StatusDot(Widget):
 class ChatScreen(Screen):
 
     SUGGESTIONS = [
-        ("🎯 Plan Day",       "Plan my day. What should I focus on given my current goals?"),
-        ("⚡ My Goals",       "What are my current goals and how am I doing on each?"),
-        ("📚 Study Notes",    "Summarize the key concepts from my uploaded notes."),
-        ("📈 Progress",       "Give me a progress summary across all my goals."),
-        ("💡 What to Study?", "What should I study or work on today?"),
-        ("🔥 Motivate Me",    "Give me a short motivational push for today."),
-        ("🔍 Weak Areas",     "What are my weakest areas that I should improve?"),
-        ("🗓 Weekly Review",  "Give me a weekly review of what I've accomplished."),
+        ("Plan Day",       "Plan my day. What should I focus on given my current goals?"),
+        ("My Goals",       "What are my current goals and how am I doing on each?"),
+        ("Study Notes",    "Summarize the key concepts from my uploaded notes."),
+        ("Progress",       "Give me a progress summary across all my goals."),
+        ("What to Study?", "What should I study or work on today?"),
+        ("Motivate Me",    "Give me a short motivational push for today."),
+        ("Weak Areas",     "What are my weakest areas that I should improve?"),
+        ("Weekly Review",  "Give me a weekly review of what I've accomplished."),
     ]
 
     THEME_KEYS = ["aurora", "light", "slate"]
@@ -111,9 +111,9 @@ class ChatScreen(Screen):
 
         # Right control block: Model Switcher + Theme Toggle
         self.model_btn = Button(
-            text="[ 🤖 GEMINI ]",
+            text="[ GEMINI ]",
             size_hint=(None, None),
-            size=(dp(108), dp(36)),
+            size=(dp(96), dp(36)),
             pos_hint={"center_y": 0.5},
             background_color=t["btn_grey"],
             background_normal="",
@@ -123,11 +123,10 @@ class ChatScreen(Screen):
         )
         self.model_btn.bind(on_press=self.open_model_picker)
 
-        theme_symbols = {"aurora": "◈ AURORA", "light": "☼ PAPER", "slate": "☾ SLATE"}
         self.theme_btn = Button(
-            text=f"[ {theme_symbols.get(self.theme_mode, 'THEME')} ]",
+            text=f"[ {t['name'].upper()} ]",
             size_hint=(None, None),
-            size=(dp(104), dp(36)),
+            size=(dp(96), dp(36)),
             pos_hint={"center_y": 0.5},
             background_color=t["btn_grey"],
             background_normal="",
@@ -170,7 +169,7 @@ class ChatScreen(Screen):
             chip = Button(
                 text=label,
                 size_hint=(None, None),
-                width=len(label) * dp(8) + dp(38),
+                width=len(label) * dp(8) + dp(32),
                 height=dp(38),
                 background_color=t["chip_bg"],
                 background_normal="",
@@ -210,9 +209,9 @@ class ChatScreen(Screen):
         self.text_input.bind(on_text_validate=self.send_message)
 
         self.send_btn = Button(
-            text="➤ SEND",
+            text="SEND",
             size_hint_x=0.18,
-            font_size=sp(12),
+            font_size=sp(13),
             bold=True,
             background_color=t["btn_primary"],
             background_normal="",
@@ -241,7 +240,7 @@ class ChatScreen(Screen):
             Clock.schedule_once(lambda dt: setattr(self.scroll, "scroll_y", 0), 0.1)
 
     def cycle_theme(self, instance=None):
-        """Cycle through: [ ◈ AURORA ] -> [ ☼ PAPER ] -> [ ☾ SLATE ]."""
+        """Cycle through: [ AURORA ] -> [ PAPER ] -> [ SLATE ]."""
         idx = self.THEME_KEYS.index(self.theme_mode)
         self.theme_mode = self.THEME_KEYS[(idx + 1) % len(self.THEME_KEYS)]
         set_theme(self.theme_mode)
@@ -250,8 +249,7 @@ class ChatScreen(Screen):
         Window.clearcolor = t["window_bg"]
         
         self.header_title.color = t["text_primary"]
-        theme_symbols = {"aurora": "◈ AURORA", "light": "☼ PAPER", "slate": "☾ SLATE"}
-        self.theme_btn.text = f"[ {theme_symbols.get(self.theme_mode, 'THEME')} ]"
+        self.theme_btn.text = f"[ {t['name'].upper()} ]"
         self.theme_btn.background_color = t["btn_grey"]
         self.theme_btn.color = t["btn_grey_fg"]
 
@@ -285,11 +283,11 @@ class ChatScreen(Screen):
         content.add_widget(title)
 
         models = [
-            ("🤖 Google Gemini (Flash Lite)", "gemini", "gemini-3.1-flash-lite"),
-            ("⚡ Local LLM (qwen3.5-2b)", "local", "qwen3.5-2b"),
-            ("🚀 Groq (Llama-3.3-70B)", "groq", "llama-3.3-70b-versatile"),
-            ("🧠 OpenAI (GPT-4o-mini)", "openai", "gpt-4o-mini"),
-            ("🎭 Anthropic (Claude 3.5 Sonnet)", "anthropic", "claude-3-5-sonnet-20241022"),
+            ("Google Gemini (Flash Lite)", "gemini", "gemini-3.1-flash-lite"),
+            ("Local LLM (qwen3.5-2b)", "local", "qwen3.5-2b"),
+            ("Groq (Llama-3.3-70B)", "groq", "llama-3.3-70b-versatile"),
+            ("OpenAI (GPT-4o-mini)", "openai", "gpt-4o-mini"),
+            ("Anthropic (Claude 3.5 Sonnet)", "anthropic", "claude-3-5-sonnet-20241022"),
         ]
 
         popup = Popup(
@@ -302,8 +300,7 @@ class ChatScreen(Screen):
         def switch_to(provider, model_name, label_text):
             popup.dismiss()
             self.active_llm = provider.upper()
-            icon_prefix = "🤖" if provider == "gemini" else ("⚡" if provider == "local" else "🧠")
-            self.model_btn.text = f"[ {icon_prefix} {provider.upper()[:6]} ]"
+            self.model_btn.text = f"[ {provider.upper()[:6]} ]"
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
             def _worker():
@@ -390,8 +387,7 @@ class ChatScreen(Screen):
             if "current" in res:
                 prov = res["current"].get("provider", "gemini").upper()
                 self.active_llm = prov
-                icon_prefix = "🤖" if prov == "GEMINI" else ("⚡" if prov == "LOCAL" else "🧠")
-                Clock.schedule_once(lambda dt: setattr(self.model_btn, "text", f"[ {icon_prefix} {prov[:6]} ]"), 0)
+                Clock.schedule_once(lambda dt: setattr(self.model_btn, "text", f"[ {prov[:6]} ]"), 0)
         
         threading.Thread(target=_fetch_active_llm, daemon=True).start()
         self._connect_ws()
