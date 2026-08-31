@@ -74,7 +74,7 @@
 │                                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────────────────────┐  │
 │  │ SQLite Database (aurora.db)                                                      │  │
-│  │ ├─ kg_nodes & kg_edges (Personal Knowledge Graph & Study Material)              │  │
+│  │ ├─ kg_nodes & kg_edges (Personal Knowledge Graph & Study Material)               │  │
 │  │ ├─ documents & document_chunks (Hybrid GraphRAG Full-Text Search)                │  │
 │  │ ├─ checkpoints.db (LangGraph Session State Checkpointer)                         │  │
 │  │ └─ llm_logs (MLflow Experiment Tracking & Strategy Auditing)                     │  │
