@@ -91,24 +91,24 @@ class ChatScreen(Screen):
 
         self.root_layout = BoxLayout(orientation="vertical")
 
-        # ── Header (Vertically Centered & Aligned) ────────────────────────────
+        # ── Header (Clean Icon-Only Controls) ─────────────────────────────────
         header = BoxLayout(
             size_hint_y=None,
             height=dp(56),
-            padding=[dp(8), dp(8)],
-            spacing=dp(6)
+            padding=[dp(12), dp(8)],
+            spacing=dp(8)
         )
 
         # Left branding block: Status Dot + App Title
         left_block = BoxLayout(
-            size_hint_x=0.28,
-            spacing=dp(6),
+            size_hint_x=0.60,
+            spacing=dp(8),
             pos_hint={"center_y": 0.5}
         )
         self.status_dot = StatusDot(pos_hint={"center_y": 0.5})
         self.header_title = Label(
             text="Aurora",
-            font_size=sp(16),
+            font_size=sp(18),
             bold=True,
             color=t["text_primary"],
             halign="left",
@@ -119,37 +119,37 @@ class ChatScreen(Screen):
         left_block.add_widget(self.status_dot)
         left_block.add_widget(self.header_title)
 
-        # Right control block: Model Switcher + Theme Toggle + Logout
+        # Right control block: Icon-Only Model Switcher + Theme Toggle + Logout
         self.model_btn = IconButton(
             icon_name="llm_gemini",
-            text="GEMINI",
+            text="",
             bg_color=t["btn_grey"],
-            fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(96), dp(36)),
-            pos_hint={"center_y": 0.5}
+            size=(dp(38), dp(38)),
+            pos_hint={"center_y": 0.5},
+            radius=10
         )
         self.model_btn.bind(on_press=self.open_model_picker)
 
         self.theme_btn = IconButton(
             icon_name=self.THEME_ICONS.get(self.theme_mode, "theme_aurora"),
-            text=t["name"].upper(),
+            text="",
             bg_color=t["btn_grey"],
-            fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(96), dp(36)),
-            pos_hint={"center_y": 0.5}
+            size=(dp(38), dp(38)),
+            pos_hint={"center_y": 0.5},
+            radius=10
         )
         self.theme_btn.bind(on_press=self.cycle_theme)
 
         self.logout_btn = IconButton(
             icon_name="logout",
-            text="LOGOUT",
+            text="",
             bg_color=t["btn_grey"],
-            fg_color=(0.95, 0.40, 0.40, 1),
             size_hint=(None, None),
-            size=(dp(88), dp(36)),
-            pos_hint={"center_y": 0.5}
+            size=(dp(38), dp(38)),
+            pos_hint={"center_y": 0.5},
+            radius=10
         )
         self.logout_btn.bind(on_press=self.logout)
 
@@ -282,11 +282,10 @@ class ChatScreen(Screen):
         
         self.header_title.color = t["text_primary"]
         self.theme_btn.set_icon(self.THEME_ICONS.get(self.theme_mode, "theme_aurora"))
-        self.theme_btn.set_text(t["name"].upper())
-        self.theme_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
+        self.theme_btn.set_colors(t["btn_grey"])
 
-        self.model_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
-        self.logout_btn.set_colors(t["btn_grey"], (0.95, 0.40, 0.40, 1))
+        self.model_btn.set_colors(t["btn_grey"])
+        self.logout_btn.set_colors(t["btn_grey"])
 
         self.attach_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
         self.text_input.background_color = t["input_bg"]
@@ -335,7 +334,6 @@ class ChatScreen(Screen):
             popup.dismiss()
             self.active_llm = provider.lower()
             self.model_btn.set_icon(self.LLM_ICONS.get(self.active_llm, "llm_gemini"))
-            self.model_btn.set_text(provider.upper()[:6])
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
             def _worker():
@@ -434,14 +432,13 @@ class ChatScreen(Screen):
                 self.active_llm = prov
                 self.available_options = res.get("options", [])
                 icon_name = self.LLM_ICONS.get(prov, "llm_gemini")
-                Clock.schedule_once(lambda dt: self._update_model_btn(icon_name, prov.upper()[:6]), 0)
+                Clock.schedule_once(lambda dt: self._update_model_btn(icon_name), 0)
         
         threading.Thread(target=_fetch_active_llm, daemon=True).start()
         self._connect_ws()
 
-    def _update_model_btn(self, icon_name, text):
+    def _update_model_btn(self, icon_name):
         self.model_btn.set_icon(icon_name)
-        self.model_btn.set_text(text)
 
     def _connect_ws(self):
         if not WS_AVAILABLE:

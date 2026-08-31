@@ -15,8 +15,8 @@ APP_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 class IconButton(ButtonBehavior, BoxLayout):
     """
-    Button with real PNG icon asset and text label.
-    100% font-independent, renders pixel-perfect on macOS desktop and Android.
+    Button with real PNG icon asset and optional text label.
+    Supports icon-only mode (centered) and icon+text mode.
     """
 
     def __init__(
@@ -25,12 +25,12 @@ class IconButton(ButtonBehavior, BoxLayout):
         text: str = "",
         bg_color=(0.15, 0.20, 0.32, 1),
         fg_color=(1, 1, 1, 1),
-        radius=8,
-        icon_size=(18, 18),
+        radius=10,
+        icon_size=(20, 20),
         font_size=12,
         **kwargs
     ):
-        super().__init__(orientation="horizontal", spacing=dp(6), padding=[dp(8), dp(4)], **kwargs)
+        super().__init__(orientation="horizontal", spacing=dp(6), padding=[dp(6), dp(4)], **kwargs)
         self._bg_col_val = bg_color
         self._fg_col_val = fg_color
 
@@ -46,13 +46,15 @@ class IconButton(ButtonBehavior, BoxLayout):
             if icon_file.exists():
                 self.icon_widget = Image(
                     source=str(icon_file),
-                    size_hint=(None, None),
-                    size=(dp(icon_size[0]), dp(icon_size[1])),
-                    pos_hint={"center_y": 0.5}
+                    size_hint=(1, 1) if not text else (None, None),
+                    size=(dp(icon_size[0]), dp(icon_size[1])) if text else self.size,
+                    pos_hint={"center_x": 0.5, "center_y": 0.5},
+                    allow_stretch=True,
+                    keep_ratio=True
                 )
                 self.add_widget(self.icon_widget)
 
-        # Label
+        # Label (if text provided)
         self.lbl_widget = None
         if text:
             self.lbl_widget = Label(
@@ -71,11 +73,11 @@ class IconButton(ButtonBehavior, BoxLayout):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
-    def set_colors(self, bg_color, fg_color):
+    def set_colors(self, bg_color, fg_color=None):
         self._bg_col_val = bg_color
-        self._fg_col_val = fg_color
         self.rect_color.rgba = bg_color
-        if self.lbl_widget:
+        if fg_color and self.lbl_widget:
+            self._fg_col_val = fg_color
             self.lbl_widget.color = fg_color
 
     def set_icon(self, icon_name: str):
@@ -86,4 +88,3 @@ class IconButton(ButtonBehavior, BoxLayout):
     def set_text(self, text: str):
         if self.lbl_widget:
             self.lbl_widget.text = text
-
