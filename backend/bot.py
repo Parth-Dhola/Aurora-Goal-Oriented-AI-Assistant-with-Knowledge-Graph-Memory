@@ -7,18 +7,15 @@ Commands:
   /logout              — sign out
   /ask <question>      — send a message through the CRAG agent
   /plan                — "plan my day" shortcut
+  /model               — switch AI model (Local, Gemini, OpenAI, Groq, Claude)
+  /docs                — list uploaded study documents
   /goals               — list your active goals
   /addgoal <name> [priority] — add a goal explicitly
   /stats               — productivity dashboard + KG stats
   /help                — list all commands
 
-Auth flow:
-  /login → bot asks username → bot asks password (separate messages, not slash args)
-  Token is stored in SQLite (telegram_sessions) — survives bot restarts
-
-Run:
-  conda activate aurora
-  python bot.py
+Direct Chat:
+  You can also type any message directly to Aurora without typing /ask!
 
 Requires TELEGRAM_BOT_TOKEN in .env
 """
@@ -119,6 +116,12 @@ def get_session(tid: int) -> dict | None:
     return session
 
 
+def _get_token(tid: int) -> str | None:
+    """Extract JWT token for a given telegram user ID."""
+    session = get_session(tid)
+    return session["token"] if session else None
+
+
 def save_session(update: Update, aurora_username: str, token: str):
     tid = update.effective_user.id
     tg_username = update.effective_user.username or ""
@@ -147,6 +150,16 @@ def api(method: str, endpoint: str, token: str = None,
         return {"error": str(e)}
 
 
+async def _safe_send_reply(update: Update, text: str):
+    """Safely send message chunks to Telegram with markdown fallback."""
+    for i in range(0, len(text), 4000):
+        chunk = text[i:i+4000]
+        try:
+            await update.message.reply_text(chunk, parse_mode="Markdown")
+        except Exception:
+            await update.message.reply_text(chunk)
+
+
 # ── Auth guard decorator ───────────────────────────────────────────────────────
 def require_auth(func):
     """Decorator: reply with login prompt if user isn't authenticated."""
@@ -169,9 +182,11 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"👋 Welcome back, *{session['username']}*!\n\n"
             "Quick commands:\n"
-            "• /ask what should I focus on today?\n"
+            "• Just type any message to chat directly!\n"
+            "• /model — switch AI models\n"
             "• /goals — view your goals\n"
             "• /plan — plan your day\n"
+            "• /docs — view study materials\n"
             "• /stats — dashboard\n"
             "• /help — all commands",
             parse_mode="Markdown"
@@ -220,7 +235,8 @@ async def login_got_password(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ *Logged in as {username}!*\n\n"
             "Your Knowledge Graph is ready. Try:\n"
-            "• /ask what should I work on today?\n"
+            "• Type any question directly into chat!\n"
+            "• /model — switch AI models\n"
             "• /goals — view your goals",
             parse_mode="Markdown"
         )
@@ -249,7 +265,7 @@ async def cmd_logout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You weren't logged in.")
 
 
-# ── /ask ───────────────────────────────────────────────────────────────────────
+# ── /ask & Direct Message Handler ──────────────────────────────────────────────
 @require_auth
 async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tid = update.effective_user.id
@@ -266,9 +282,24 @@ async def cmd_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                  json_data={"message": question, "session_id": f"tg-{tid}"})
     reply = result.get("reply") or result.get("error", "Something went wrong.")
     await thinking.delete()
-    # Telegram has 4096 char limit per message
-    for i in range(0, len(reply), 4000):
-        await update.message.reply_text(reply[i:i+4000])
+    await _safe_send_reply(update, reply)
+
+
+@require_auth
+async def handle_direct_chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Allow user to type natural messages directly without needing /ask."""
+    user_msg = update.message.text.strip() if update.message and update.message.text else ""
+    if not user_msg:
+        return
+
+    tid = update.effective_user.id
+    session = get_session(tid)
+    thinking = await update.message.reply_text("🤔 Thinking...")
+    result = api("post", "/chat/", token=session["token"],
+                 json_data={"message": user_msg, "session_id": f"tg-{tid}"})
+    reply = result.get("reply") or result.get("error", "Something went wrong.")
+    await thinking.delete()
+    await _safe_send_reply(update, reply)
 
 
 # ── /plan ──────────────────────────────────────────────────────────────────────
@@ -282,8 +313,7 @@ async def cmd_plan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                             "session_id": f"tg-{tid}"})
     reply = result.get("reply") or result.get("error", "Something went wrong.")
     await thinking.delete()
-    for i in range(0, len(reply), 4000):
-        await update.message.reply_text(reply[i:i+4000])
+    await _safe_send_reply(update, reply)
 
 
 # ── /goals ─────────────────────────────────────────────────────────────────────
@@ -297,7 +327,7 @@ async def cmd_goals(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "No goals yet!\n\n"
             "• Use /addgoal <name> to add one explicitly\n"
-            "• Or just /ask — Aurora extracts goals automatically from your messages"
+            "• Or just chat — Aurora extracts goals automatically from your messages"
         )
         return
 
@@ -316,7 +346,7 @@ async def cmd_goals(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if archived:
         lines.append(f"\n_({len(archived)} archived)_")
 
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await _safe_send_reply(update, "\n".join(lines))
 
 
 # ── /addgoal ───────────────────────────────────────────────────────────────────
@@ -396,10 +426,10 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"🎯 *Placement*\n"
         f"  Days remaining: {placement.get('days_remaining', '?')}"
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await _safe_send_reply(update, text)
 
 
-# ── Documents ──────────────────────────────────────────────────────────────────
+# ── Documents (Hybrid GraphRAG) ────────────────────────────────────────────────
 async def handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle incoming PDF/TXT files sent directly to the Telegram bot."""
     tid = update.effective_user.id
@@ -484,7 +514,7 @@ async def cmd_docs(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             lines.append("")
 
         lines.append("💡 _Ask anything about these documents using /ask_")
-        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        await _safe_send_reply(update, "\n".join(lines))
     except Exception as e:
         await update.message.reply_text(f"❌ Could not fetch documents: {e}")
 
@@ -587,7 +617,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/login — connect your Aurora account\n"
         "/logout — sign out\n\n"
         "*AI Chat & Models*\n"
-        "/ask <question> — chat with Aurora\n"
+        "💬 _Just type any question directly to chat!_\n"
+        "/ask <question> — chat via slash command\n"
         "/plan — plan your day based on your goals\n"
         "/model — switch AI model (Local, Gemini, OpenAI, Groq, Claude)\n\n"
         "*Study Documents (Hybrid RAG)*\n"
@@ -635,7 +666,6 @@ def main():
 
     print(f"[Bot] Connecting to Aurora API at {API_BASE}")
 
-    # post_init registers command suggestions with Telegram on every startup
     app = Application.builder().token(BOT_TOKEN).post_init(_post_init).build()
 
     # Login conversation
@@ -662,6 +692,8 @@ def main():
     app.add_handler(CommandHandler("help",    cmd_help))
     app.add_handler(CallbackQueryHandler(handle_model_switch, pattern="^llm:"))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    # Direct chat handler for normal text messages
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_direct_chat))
 
     print("[Bot] Aurora Telegram Bot is running. Press Ctrl+C to stop.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
