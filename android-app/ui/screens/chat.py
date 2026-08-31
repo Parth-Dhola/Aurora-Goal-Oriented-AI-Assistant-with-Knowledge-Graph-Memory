@@ -29,6 +29,7 @@ from core.api import api_upload_document, api_post, api_get
 from ui.theme import THEMES
 from ui.components.bubble import ChatBubble
 from ui.components.file_picker import DocumentPickerDialog
+from ui.components.icon_button import IconButton
 
 
 class StatusDot(Widget):
@@ -70,6 +71,7 @@ class ChatScreen(Screen):
     ]
 
     THEME_KEYS = ["aurora", "light", "slate"]
+    THEME_ICONS = {"aurora": "theme_aurora", "light": "theme_sun", "slate": "theme_moon"}
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -91,7 +93,7 @@ class ChatScreen(Screen):
 
         # Left branding block: Status Dot + App Title
         left_block = BoxLayout(
-            size_hint_x=0.32,
+            size_hint_x=0.30,
             spacing=dp(6),
             pos_hint={"center_y": 0.5}
         )
@@ -110,42 +112,35 @@ class ChatScreen(Screen):
         left_block.add_widget(self.header_title)
 
         # Right control block: Model Switcher + Theme Toggle + Logout
-        self.model_btn = Button(
-            text="[ GEMINI ]",
+        self.model_btn = IconButton(
+            icon_name="theme_aurora",
+            text="GEMINI",
+            bg_color=t["btn_grey"],
+            fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(84), dp(36)),
-            pos_hint={"center_y": 0.5},
-            background_color=t["btn_grey"],
-            background_normal="",
-            color=t["btn_grey_fg"],
-            font_size=sp(11),
-            bold=True
+            size=(dp(96), dp(36)),
+            pos_hint={"center_y": 0.5}
         )
         self.model_btn.bind(on_press=self.open_model_picker)
 
-        self.theme_btn = Button(
-            text=f"[ {t['name'].upper()} ]",
+        self.theme_btn = IconButton(
+            icon_name=self.THEME_ICONS.get(self.theme_mode, "theme_aurora"),
+            text=t["name"].upper(),
+            bg_color=t["btn_grey"],
+            fg_color=t["btn_grey_fg"],
             size_hint=(None, None),
-            size=(dp(84), dp(36)),
-            pos_hint={"center_y": 0.5},
-            background_color=t["btn_grey"],
-            background_normal="",
-            color=t["btn_grey_fg"],
-            font_size=sp(11),
-            bold=True
+            size=(dp(100), dp(36)),
+            pos_hint={"center_y": 0.5}
         )
         self.theme_btn.bind(on_press=self.cycle_theme)
 
-        self.logout_btn = Button(
-            text="LOGOUT",
+        self.logout_btn = IconButton(
+            text="EXIT",
+            bg_color=t["btn_grey"],
+            fg_color=(0.95, 0.40, 0.40, 1),
             size_hint=(None, None),
-            size=(dp(68), dp(36)),
-            pos_hint={"center_y": 0.5},
-            background_color=t["btn_grey"],
-            background_normal="",
-            color=(0.95, 0.40, 0.40, 1),
-            font_size=sp(10),
-            bold=True
+            size=(dp(60), dp(36)),
+            pos_hint={"center_y": 0.5}
         )
         self.logout_btn.bind(on_press=self.logout)
 
@@ -200,14 +195,14 @@ class ChatScreen(Screen):
         # ── Input row ─────────────────────────────────────────────────────────
         input_row = BoxLayout(size_hint_y=None, height=dp(64), padding=[dp(8), dp(6)], spacing=dp(6))
         
-        self.attach_btn = Button(
-            text="+ DOC",
-            size_hint_x=0.20,
-            font_size=sp(13),
-            bold=True,
-            background_color=t["btn_grey"],
-            background_normal="",
-            color=t["btn_grey_fg"]
+        self.attach_btn = IconButton(
+            icon_name="doc",
+            text="DOC",
+            bg_color=t["btn_grey"],
+            fg_color=t["btn_grey_fg"],
+            size_hint=(None, None),
+            size=(dp(84), dp(48)),
+            pos_hint={"center_y": 0.5}
         )
         self.attach_btn.bind(on_press=self.open_file_picker)
 
@@ -215,21 +210,21 @@ class ChatScreen(Screen):
             hint_text="Message Aurora...",
             multiline=False,
             font_size=sp(16),
-            size_hint_x=0.62,
+            size_hint_x=0.64,
             background_color=t["input_bg"],
             foreground_color=t["input_fg"],
             padding=[dp(14), dp(14)]
         )
         self.text_input.bind(on_text_validate=self.send_message)
 
-        self.send_btn = Button(
+        self.send_btn = IconButton(
+            icon_name="send",
             text="SEND",
-            size_hint_x=0.18,
-            font_size=sp(13),
-            bold=True,
-            background_color=t["btn_primary"],
-            background_normal="",
-            color=t.get("btn_primary_fg", (1, 1, 1, 1))
+            bg_color=t["btn_primary"],
+            fg_color=t.get("btn_primary_fg", (1, 1, 1, 1)),
+            size_hint=(None, None),
+            size=(dp(92), dp(48)),
+            pos_hint={"center_y": 0.5}
         )
         self.send_btn.bind(on_press=self.send_message)
 
@@ -277,21 +272,17 @@ class ChatScreen(Screen):
         Window.clearcolor = t["window_bg"]
         
         self.header_title.color = t["text_primary"]
-        self.theme_btn.text = f"[ {t['name'].upper()} ]"
-        self.theme_btn.background_color = t["btn_grey"]
-        self.theme_btn.color = t["btn_grey_fg"]
+        self.theme_btn.set_icon(self.THEME_ICONS.get(self.theme_mode, "theme_aurora"))
+        self.theme_btn.set_text(t["name"].upper())
+        self.theme_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
 
-        self.model_btn.background_color = t["btn_grey"]
-        self.model_btn.color = t["btn_grey_fg"]
+        self.model_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
+        self.logout_btn.set_colors(t["btn_grey"], (0.95, 0.40, 0.40, 1))
 
-        self.logout_btn.background_color = t["btn_grey"]
-
-        self.attach_btn.background_color = t["btn_grey"]
-        self.attach_btn.color = t["btn_grey_fg"]
+        self.attach_btn.set_colors(t["btn_grey"], t["btn_grey_fg"])
         self.text_input.background_color = t["input_bg"]
         self.text_input.foreground_color = t["input_fg"]
-        self.send_btn.background_color = t["btn_primary"]
-        self.send_btn.color = t.get("btn_primary_fg", (1, 1, 1, 1))
+        self.send_btn.set_colors(t["btn_primary"], t.get("btn_primary_fg", (1, 1, 1, 1)))
 
         for chip in self.chip_buttons:
             chip.background_color = t["chip_bg"]
@@ -330,7 +321,7 @@ class ChatScreen(Screen):
         def switch_to(provider, model_name, label_text):
             popup.dismiss()
             self.active_llm = provider.upper()
-            self.model_btn.text = f"[ {provider.upper()[:6]} ]"
+            self.model_btn.set_text(provider.upper()[:6])
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
             def _worker():
@@ -417,7 +408,7 @@ class ChatScreen(Screen):
             if "current" in res:
                 prov = res["current"].get("provider", "gemini").upper()
                 self.active_llm = prov
-                Clock.schedule_once(lambda dt: setattr(self.model_btn, "text", f"[ {prov[:6]} ]"), 0)
+                Clock.schedule_once(lambda dt: self.model_btn.set_text(prov[:6]), 0)
         
         threading.Thread(target=_fetch_active_llm, daemon=True).start()
         self._connect_ws()
