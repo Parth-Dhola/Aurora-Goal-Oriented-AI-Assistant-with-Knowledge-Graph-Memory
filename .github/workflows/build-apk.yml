@@ -10,71 +10,19 @@ on:
 
 jobs:
   build:
-    name: Build Aurora APK (arm64-v8a)
+    name: Build Aurora APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java JDK 17
-        uses: actions/setup-java@v4
+      - name: Build with Buildozer Action
+        uses: ArtemBernatskyy/action-buildozer@master
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ runner.os }}-${{ hashFiles('android-app/buildozer.spec') }}
-
-      - name: Cache Android SDK / NDK
-        uses: actions/cache@v4
-        with:
-          path: android-app/.buildozer
-          key: buildozer-app-${{ runner.os }}-${{ hashFiles('android-app/buildozer.spec') }}
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            ffmpeg \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            zlib1g-dev \
-            libgstreamer1.0-dev \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            libffi-dev \
-            libssl-dev \
-            autoconf \
-            libtool \
-            pkg-config \
-            cmake \
-            zip \
-            unzip
-          pip install --upgrade pip
-          pip install --upgrade buildozer "cython<3.0" virtualenv
-
-      - name: Build Android Debug APK
-        working-directory: ./android-app
-        run: |
-          # Build APK with verbose log
-          buildozer -v android debug
+          workdir: android-app
+          buildozer_version: stable
+          command: buildozer -v android debug
 
       - name: Upload Downloadable APK Artifact
         uses: actions/upload-artifact@v4

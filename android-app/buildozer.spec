@@ -40,6 +40,9 @@ android.api = 33
 # Android architecture (arm64-v8a covers most modern phones)
 android.archs = arm64-v8a
 
+# Automatically accept Android SDK / NDK license agreements
+android.accept_sdk_license = True
+
 [buildozer]
 # Build log verbosity (2 = verbose, good for debugging)
 log_level = 2
