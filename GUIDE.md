@@ -20,7 +20,6 @@ This document serves as the comprehensive engineering guide and operator manual 
 6. [Obsidian Vault Knowledge Graph Visualization](#6-obsidian-vault-knowledge-graph-visualization)
 7. [API & WebSocket Protocol Reference](#7-api--websocket-protocol-reference)
 8. [Automated Testing & CI/CD Pipeline](#8-automated-testing--cicd-pipeline)
-9. [Troubleshooting & FAQ](#9-troubleshooting--faq)
 
 ---
 
@@ -304,22 +303,3 @@ pytest tests/ -v
 ### GitHub Actions CI/CD:
 - **`ci-cd.yml`**: Runs on every push/PR to execute unit tests and build Docker images (<30 seconds).
 - **`build-apk.yml`**: Runs only on manual `workflow_dispatch` trigger to build the Android APK.
-
----
-
-## 9. Troubleshooting & FAQ
-
-### 1. Mobile App Cannot Connect ("Connection Refused / Failed to connect")
-- **Cause**: The backend server is bound to `127.0.0.1` (localhost only) or the phone is not on the same Wi-Fi network.
-- **Fix**:
-  1. Ensure the server is running with `uvicorn app:app --host 0.0.0.0 --port 8000`.
-  2. Find your computer's local IP (`ifconfig` on macOS, `ipconfig` on Windows).
-  3. In the mobile app login screen, enter `http://192.168.x.x:8000`.
-
-### 2. Missing Icons in Kivy on Desktop
-- **Cause**: Desktop SDL2 font rasterizers cannot render multi-byte color emojis.
-- **Fix**: Aurora uses dedicated PNG image assets in `android-app/assets/icons/` (`IconButton`) and vector OpenGL shapes (`StatusDot`), guaranteeing 100% visibility across all platforms.
-
-### 3. Local LLM Not Showing in Model Picker
-- **Cause**: The local server (llama.cpp or Ollama) is not running on port `8080`.
-- **Fix**: Start your local engine (`./llama-server --port 8080`). Aurora dynamically checks `http://localhost:8080/v1/models` and will automatically enable the option.
