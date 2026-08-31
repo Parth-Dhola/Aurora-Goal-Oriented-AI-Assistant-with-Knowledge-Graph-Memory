@@ -37,6 +37,18 @@ def render_markdown_for_kivy(text: str) -> str:
     # Convert numbered lists (1. item)
     text = re.sub(r'(?m)^(\d+)\.\s+', r'\1. ', text)
 
+    # Priority icons replacement for goal listings and status
+    text = re.sub(r'(?i)\b(priority:\s*urgent|priority\s*urgent|urgent priority)\b', r'🔥 [b]URGENT[/b]', text)
+    text = re.sub(r'(?i)\b(priority:\s*high|priority\s*high|high priority)\b', r'⚡ [b]HIGH[/b]', text)
+    text = re.sub(r'(?i)\b(priority:\s*medium|priority\s*medium|medium priority)\b', r'📌 [b]MEDIUM[/b]', text)
+    text = re.sub(r'(?i)\b(priority:\s*low|priority\s*low|low priority)\b', r'🌱 [b]LOW[/b]', text)
+    
+    # Standalone priority tags
+    text = re.sub(r'(?i)\b\[URGENT\]\b', r'🔥 [b]URGENT[/b]', text)
+    text = re.sub(r'(?i)\b\[HIGH\]\b', r'⚡ [b]HIGH[/b]', text)
+    text = re.sub(r'(?i)\b\[MEDIUM\]\b', r'📌 [b]MEDIUM[/b]', text)
+    text = re.sub(r'(?i)\b\[LOW\]\b', r'🌱 [b]LOW[/b]', text)
+
     # Clean backtick inline code `code`
     text = re.sub(r'`([^`]+)`', r'[b]\1[/b]', text)
 

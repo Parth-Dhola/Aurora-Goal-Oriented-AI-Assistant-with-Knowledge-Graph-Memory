@@ -11,7 +11,7 @@ package.domain = com.parthdhola
 source.dir = .
 
 # File types to include in the APK
-source.include_exts = py,png,jpg,kv,atlas,json
+source.include_exts = py,png,jpg,kv,atlas,json,ttf,ttc
 
 # App version
 version = 1.0
