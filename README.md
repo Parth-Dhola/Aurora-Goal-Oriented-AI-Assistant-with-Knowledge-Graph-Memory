@@ -9,11 +9,11 @@
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED)](https://www.docker.com)
 [![MLflow](https://img.shields.io/badge/mlflow-2.3-0194E2)](https://mlflow.org)
 
-> A stateful GenAI agent built with LangGraph + FastAPI. Uses a SQLite Knowledge Graph and Document Knowledge Base to accumulate structured facts, goals, and study materials, then builds a personalised context brief that guides each response via a CRAG self-reflection pipeline across **Gemini, OpenAI, Claude, Groq, or Local LLMs (Ollama)**.
+> A stateful GenAI assistant built with LangGraph + FastAPI. Uses a SQLite Knowledge Graph and Document Knowledge Base to accumulate structured facts, goals, and study materials, then builds a personalised context brief that guides each response via a CRAG self-reflection pipeline across **Gemini, Local LLMs (llama.cpp/Ollama), OpenAI, Claude, and Groq**.
 
 ---
 
-## Architecture
+## Architecture Overview
 
 ```
                                 ┌──────────────────────┐
@@ -69,7 +69,8 @@
 │                                                                                        │
 │  ┌───────────────────────┐   ┌───────────────────────┐   ┌──────────────────────────┐  │
 │  │   Android App (Kivy)  │   │  Telegram Bot (v20+)  │   │  FastAPI REST / WS API   │  │
-│  │  3 Themes + PDF Attach│   │  /docs, /plan, /goals │   │  Swagger Docs & Auth     │  │
+│  │  3 Themes + PDF Upload│   │  /docs, /plan, /goals │   │  Swagger Docs & Auth     │  │
+│  │  OpenGL Status Dot    │   │  /model 1-Tap Switch  │   │  Multi-LLM Switcher      │  │
 │  └───────────────────────┘   └───────────────────────┘   └──────────────────────────┘  │
 │                                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────────────────────┐  │
@@ -96,176 +97,179 @@
 | Feature | Description |
 |---|---|
 | **CRAG Agent** | 7-node LangGraph StateGraph — extract, retrieve, grade, generate, check groundedness, web search |
-| **Multi-LLM Engine** | Switch seamlessly between **Gemini**, **OpenAI**, **Claude**, **Groq**, or **Local LLMs (Ollama)** |
+| **Multi-LLM Engine** | Dynamic runtime switching between **Gemini**, **Local LLMs (llama.cpp/Ollama)**, **OpenAI**, **Claude**, and **Groq** |
 | **Hybrid GraphRAG** | Ingests PDFs & textbooks, extracts hierarchical topics, algorithms, and links them to the KG |
-| **Knowledge Graph** | SQLite `kg_nodes` + `kg_edges` — accumulates structured facts, goals, and prerequisites |
-| **Obsidian Vault Sync** | One-click export (`scripts/sync_to_obsidian.py`) creating an interconnected interactive graph in Obsidian |
-| **Telegram Bot** | Full assistant with `/login`, `/ask`, `/goals`, `/docs`, and direct PDF/TXT file upload |
-| **Modular Android App** | Kivy mobile app with **Aurora Glow**, **Warm Paper**, & **Soft Slate** themes + Storage File Picker |
-| **Context Preview & Debug** | `/api/chat/context-preview` endpoint to inspect the exact context brief passed to LLM |
-| **MLflow Tracking** | Real-time logging of strategy (`graph_hit`, `direct`, `web_fallback`), latency, and KG nodes used |
-| **JWT Authentication** | Secure token-based access and password hashing |
-| **CI/CD Automation** | GitHub Actions running 28 automated tests, multi-arch Docker builds, and cloud APK compilation |
+| **Obsidian Vault Sync** | Bi-directional Markdown export of your Knowledge Graph with live `[[wikilinks]]` and Dataview tables |
+| **Modular Android App** | Kivy mobile/desktop app with real PNG icon assets, OpenGL vector status dot, soft keyboard avoidance, and 3 themes |
+| **Telegram Bot** | Full conversational interface with 1-tap `/model` switcher, file ingestion, and goal tracking |
+| **CI/CD & Pytest** | 30 automated test cases with manual 1-click APK build workflow |
 
 ---
 
-## Multi-LLM Provider Engine
+## Quickstart
 
-Aurora supports multiple LLM providers out of the box via `.env`:
-
-```bash
-# 1. Google Gemini (Default)
-LLM_PROVIDER=gemini
-LLM_MODEL=gemini-3.1-flash-lite
-GEMINI_API_KEY=your_key
-
-# 2. OpenAI
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4o-mini
-OPENAI_API_KEY=your_key
-
-# 3. Anthropic Claude
-LLM_PROVIDER=anthropic
-LLM_MODEL=claude-3-5-sonnet-20241022
-ANTHROPIC_API_KEY=your_key
-
-# 4. Groq (Ultra-Fast)
-LLM_PROVIDER=groq
-LLM_MODEL=llama-3.3-70b-versatile
-GROQ_API_KEY=your_key
-
-# 5. Local LLM (Ollama, LM Studio, or vLLM — Offline & Private!)
-LLM_PROVIDER=local
-LLM_MODEL=llama3.2
-LOCAL_LLM_URL=http://localhost:11434/v1
-```
+### Prerequisites
+- Python 3.11
+- Anaconda or Miniconda
+- (Optional) Docker & Docker Compose
+- (Optional) Ollama, LM Studio, or llama.cpp for local offline AI
 
 ---
 
-## Quick Start
+### Option A: Local Python & Conda Setup
 
-### 1. Local Setup
 ```bash
 # 1. Clone repository
 git clone https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory.git
 cd Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env and add your LLM API keys and SECRET_KEY
+# 2. Create and activate conda environment
+conda create -n aurora python=3.11 -y
+conda activate aurora
 
 # 3. Install dependencies
-cd backend
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
-# 4. Start backend API (--host 0.0.0.0 allows Android phone to connect over Wi-Fi)
+# 4. Configure environment variables
+cp .env.example .env
+# Open .env and insert your GEMINI_API_KEY, SECRET_KEY, and TELEGRAM_TOKEN
+
+# 5. Start the FastAPI backend server (bound to 0.0.0.0 for LAN & mobile access)
+cd backend
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
-- Interactive API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 2. Docker & Docker Compose
+Once running:
+- **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+---
+
+### Option B: Run with Docker Compose
+
 ```bash
-docker compose up -d --build
-# Backend API:  http://localhost:8000
-# MLflow UI:    http://localhost:5001
+# Start backend (port 8000) and MLflow tracking server (port 5001)
+docker compose up -d
+
+# View logs
+docker compose logs -f backend
 ```
 
 ---
 
-## API Reference
+### Running the Android / Desktop Client
 
-| Endpoint | Method | Auth | Description |
-|---|---|---|---|
-| `/api/health` | GET | No | Health check |
-| `/api/auth/register` | POST | No | Create user account |
-| `/api/auth/login` | POST | No | Obtain JWT token |
-| `/api/auth/me` | GET | Yes | Get current authenticated user |
-| `/api/chat/` | POST | Yes | Send message through CRAG agent (`debug: true` supported) |
-| `/api/chat/context-preview` | GET | Yes | Inspect the exact KG + Document context brief passed to LLM |
-| `/api/chat/history` | GET | Yes | View chat history |
-| `/api/goals/` | GET/POST | Yes | List / create explicit goals |
-| `/api/goals/{id}` | PATCH/DELETE | Yes | Update / archive goal |
-| `/api/documents/upload` | POST | Yes | Upload PDF / notes → auto-generate topic notes & KG |
-| `/api/documents/` | GET | Yes | List uploaded study documents |
-| `/api/documents/{id}` | GET/DELETE | Yes | View document topic notes / delete document |
-| `/api/kg/nodes` | GET | Yes | Knowledge Graph nodes (JSON) |
-| `/api/kg/edges` | GET | Yes | Knowledge Graph edges & relations (JSON) |
-| `/api/kg/export/obsidian` | GET | Yes | Download Obsidian Vault (.zip) |
-| `/api/tasks/` | GET/POST | Yes | List / create tasks |
-| `/api/tasks/{id}` | PATCH/DELETE | Yes | Update / delete task |
-| `/api/stats/` | GET | Yes | Dashboard — tasks, active LLM provider, strategy breakdown, KG stats |
-| `/api/reminders/` | GET/POST | Yes | List / create reminders |
-| `/ws/chat?token=...` | WebSocket | Token in URL | Real-time bidirectional chat |
-| `/docs` | GET | No | Swagger UI documentation |
+You can run and test the app immediately on your desktop:
 
----
-
-## Android Mobile App & APK Build
-
-### Running Locally
 ```bash
 cd android-app
-pip install kivy requests websocket-client
 python main.py
 ```
-- Includes **Aurora Glow**, **Warm Paper**, and **Soft Slate** themes with one-tap header switcher.
-- Tap `+ DOC` to pick and upload PDFs from Android storage directly into your Knowledge Graph.
-- Dynamic soft-keyboard avoidance lifts inputs smoothly above the keyboard.
 
-### Building APK
-1. Push code to GitHub.
-2. In the **Actions** tab, trigger the **Build Android APK** workflow.
-3. Download the compiled `.apk` directly from **Artifacts** at the bottom of the completed run.
+- When connecting from your **phone on Wi-Fi**, set the Server URL to your computer's local IP: `http://192.168.x.x:8000`.
+
+---
+
+### Running the Telegram Bot
+
+```bash
+cd backend
+python bot.py
+```
+
+Available commands in Telegram:
+- `/login` — Authenticate your Aurora account
+- `/ask <message>` — Chat with your personal Knowledge Graph
+- `/model` — 1-tap dynamic AI brain switching
+- `/docs` — List uploaded study documents
+- `/goals` — View your current goals & priorities
+- `/plan` — Plan your day based on your active goals
+- `/logout` — Disconnect session
+
+---
+
+## Multi-LLM Provider Configuration
+
+Aurora supports hot-swapping AI models on the fly via the API, Telegram Bot, or Android App:
+
+| Provider | Setting in `.env` | Model Name | Description |
+|---|---|---|---|
+| **Google Gemini (Default)** | `LLM_PROVIDER=gemini` | `gemini-3.1-flash-lite` | Ultra-fast cloud inference |
+| **Local Offline LLM** | `LLM_PROVIDER=local` | `qwen3.5-2b` / `llama3.2` | 100% offline via llama.cpp, Ollama, or LM Studio |
+| **Groq** | `LLM_PROVIDER=groq` | `llama-3.3-70b-versatile` | Ultra low-latency cloud inference |
+| **OpenAI** | `LLM_PROVIDER=openai` | `gpt-4o-mini` | OpenAI cloud API |
+| **Anthropic** | `LLM_PROVIDER=anthropic` | `claude-3-5-sonnet-20241022`| Deep reasoning Claude model |
+
+### Using Local Models (Ollama / llama.cpp / LM Studio)
+1. Start your local server on port `8080` (or `11434` for Ollama).
+2. Set in `.env`:
+   ```env
+   LOCAL_LLM_URL=http://localhost:8080/v1
+   LOCAL_LLM_MODEL=qwen3.5-2b
+   ```
+3. Aurora automatically discovers available models from `/v1/models` and enables dynamic switching!
 
 ---
 
 ## Project Structure
 
 ```
-aurora/
+.
 ├── backend/
-│   ├── app.py                      # FastAPI entry point
-│   ├── bot.py                      # Telegram bot interface
-│   ├── models/database.py          # SQLite schema (users, tasks, chat, KG, docs, llm_logs)
-│   ├── services/
-│   │   ├── crag_agent.py           # LangGraph CRAG StateGraph core
-│   │   ├── llm_provider.py         # Universal Multi-LLM provider engine (Gemini, OpenAI, Claude, Groq, Local)
-│   │   ├── document_service.py     # PDF parsing + Deep KG decomposition
-│   │   ├── kg_service.py           # KG entity extraction + graph CRUD
-│   │   ├── context_builder.py      # KG + Document Knowledge → markdown context brief
-│   │   ├── mlflow_service.py       # MLflow logging (strategy + prompt versioning)
-│   │   ├── llm_service.py          # chat() — wires agent + history + logging
-│   │   └── auth_service.py         # JWT auth, password hashing
+│   ├── app.py                      # FastAPI app entry point & route definitions
+│   ├── bot.py                      # Telegram Bot with /model switcher
+│   ├── config.py                   # Global settings and environment loader
+│   ├── models/
+│   │   ├── database.py             # SQLite connection & table schemas
+│   │   └── schemas.py              # Pydantic validation models
 │   ├── routes/
-│   │   ├── auth.py                 # /api/auth/
-│   │   ├── chat.py                 # /api/chat/ & context-preview
-│   │   ├── goals.py                # /api/goals/
-│   │   ├── documents.py            # /api/documents/ (PDF upload & notes)
-│   │   ├── kg.py                   # /api/kg/ (Obsidian export)
-│   │   ├── tasks.py                # /api/tasks/
-│   │   ├── stats.py                # /api/stats/
-│   │   ├── reminders.py            # /api/reminders/
-│   │   └── websocket.py            # /ws/chat
-│   ├── Dockerfile
-│   └── requirements.txt
+│   │   ├── auth.py                 # JWT authentication (register/login)
+│   │   ├── chat.py                 # REST chat endpoint
+│   │   ├── websocket.py            # Real-time WebSocket chat
+│   │   ├── documents.py            # Document upload & chunk management
+│   │   ├── goals.py                # Goal creation, updates & archiving
+│   │   ├── tasks.py                # Task management
+│   │   ├── kg.py                   # Knowledge Graph nodes & Obsidian sync
+│   │   ├── llm.py                  # Dynamic Multi-LLM status & switcher
+│   │   └── stats.py                # Productivity metrics
+│   ├── services/
+│   │   ├── crag_agent.py           # 7-node LangGraph Corrective RAG state machine
+│   │   ├── llm_provider.py         # Multi-LLM provider abstraction & hot-swapping
+│   │   ├── document_service.py     # PDF text extraction & topic decomposition
+│   │   ├── graph_rag.py            # Hybrid graph traversal + FTS5 search
+│   │   └── obsidian_sync.py        # Markdown vault exporter
+│   └── tests/
+│       └── test_api.py             # 30 automated integration & unit test cases
 ├── android-app/
-│   ├── main.py                     # Clean app entry point
-│   ├── buildozer.spec              # Android APK build spec
-│   ├── core/                       # Core networking & config
-│   │   ├── config.py               # Persistent config & URL normalization
-│   │   └── api.py                  # API requests & document upload
-│   └── ui/                         # Modular UI package
-│       ├── theme.py                # Aurora Glow, Warm Paper & Soft Slate themes
-│       ├── screens/
-│       │   ├── login.py            # Login & server settings screen
-│       │   └── chat.py             # Real-time WebSocket chat screen
-│       └── components/
-│           ├── bubble.py           # Stylized chat bubble with avatar badges & Markdown formatter
-│           └── file_picker.py      # Android storage-aware PDF picker
-├── .github/workflows/
-│   ├── ci-cd.yml                   # Automated 28-test suite + Docker push
-│   └── build-apk.yml               # Automated Android APK compilation workflow
-├── docker-compose.yml
-├── nginx.conf
-└── .env.example
+│   ├── main.py                     # App entry point
+│   ├── buildozer.spec              # Buildozer APK configuration
+│   ├── core/                       # App config & API client
+│   ├── ui/                         # Themes, screens (login, chat), and components
+│   └── assets/icons/               # High-res visual PNG icon assets
+├── obsidian-KG-vault/              # Synchronized Knowledge Graph vault
+├── docker-compose.yml              # Multi-container orchestration (Backend + MLflow)
+├── GUIDE.md                        # In-depth operator and engineering guide
+└── README.md                       # Project overview
 ```
+
+---
+
+## Testing & Verification
+
+Run the automated test suite:
+
+```bash
+cd backend
+pytest tests/ -v
+```
+
+Output:
+```
+======================== 30 passed in 0.47s ========================
+```
+
+---
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
