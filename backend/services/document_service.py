@@ -1,13 +1,16 @@
 """
-document_service.py — PDF ingestion, topic Markdown generation, and Hybrid GraphRAG indexing
+document_service.py — Deep Hierarchical Knowledge Graph & Obsidian Study Notes Engine for Documents & Books
 
 Flow:
-  1. Extract text from uploaded PDF using pypdf.
-  2. Prompt Gemini to decompose document into structured topics, Obsidian Markdown notes,
-     and Knowledge Graph entities/relationships.
+  1. Extract text from uploaded PDF/TXT using pypdf.
+  2. Prompt Gemini (acting as a Knowledge Graph Architect) to extract:
+     - Hierarchical multi-topic breakdown with in-depth study notes
+     - Rich concept, algorithm, and data structure nodes
+     - Directed semantic edges (PREREQUISITE_FOR, USES, OPTIMIZES, SOLVES, VARIATION_OF, PART_OF)
+     - Interconnected [[wikilinks]] across all topics
   3. Save topic notes into obsidian-KG-vault/Documents/<DocName>/<Topic>.md
   4. Store chunks in SQLite document_chunks + document_chunks_fts.
-  5. Link extracted topics and concepts into SQLite kg_nodes and kg_edges.
+  5. Inject rich nodes and edges into SQLite kg_nodes and kg_edges.
 """
 
 import io
@@ -52,39 +55,52 @@ def extract_text_from_pdf(pdf_bytes: bytes, filename: str = "") -> Tuple[str, in
         full_text = "\n\n".join(pages_text)
         return full_text, max(len(reader.pages), 1)
     except Exception:
-        # Fallback to plain text decode
         return pdf_bytes.decode("utf-8", errors="ignore"), 1
 
 
-_DOCUMENT_DECOMPOSITION_PROMPT = """Analyze the following document and decompose it into structured topics for a Knowledge Graph & study notes system.
+_DEEP_DOCUMENT_PROMPT = """You are a Senior Knowledge Graph Architect and University Professor.
+Analyze the following textbook/document and perform a comprehensive, deep knowledge decomposition.
 
 Document Filename: {filename}
 Document Content:
 {content}
 
-Return ONLY valid JSON (no extra text, no markdown fences) with this exact schema:
+Extract a rich, multi-layered Knowledge Graph and comprehensive study notes that do complete justice to this material.
+
+Return ONLY valid JSON (no markdown fences, no conversational text) with this exact schema:
 {{
-  "title": "Clean document title",
-  "summary": "2-3 sentence high-level overview",
+  "title": "Clear, Professional Document Title",
+  "summary": "3-4 sentence comprehensive overview of the core principles, methodologies, and value of this document.",
   "topics": [
     {{
-      "topic_name": "Name of main topic or chapter",
-      "summary": "Brief 1-sentence summary",
-      "markdown_content": "# Topic Title\\n\\nDetailed study notes summarizing key concepts, definitions, formulas, and explanations. Use [[wikilinks]] for important related subtopics or prerequisites.\\n\\n## Key Concepts\\n- Key takeaway 1\\n- Key takeaway 2",
-      "key_concepts": ["Concept 1", "Concept 2"]
+      "topic_name": "Specific Topic / Chapter Name",
+      "summary": "1-2 sentence topic summary",
+      "markdown_content": "# Topic Title\\n\\n## 📌 Core Overview\\nDetailed conceptual explanation with clear depth...\\n\\n## ⚙️ Algorithms, Theorems & Mathematical Formulations\\nDetailed step-by-step breakdown. Include LaTeX formulas (e.g. $O(V + E \\\\log V)$, $\\\\sum$) and pseudocode where relevant.\\n\\n## 🔗 Interconnections & Prerequisites\\n- Prerequisite concepts: [[Concept A]], [[Concept B]]\\n- Solves problem classes: [[Problem Class X]]\\n- Related techniques: [[Technique Y]]\\n\\n## 💡 Key Takeaways & Exam/Interview Tips\\n- Key takeaway 1\\n- Key takeaway 2",
+      "key_concepts": ["Concept 1", "Concept 2", "Algorithm 1"]
     }}
   ],
   "graph_nodes": [
-    {{"label": "Topic or Concept Name", "type": "topic", "priority": "high"}},
-    {{"label": "Specific Concept", "type": "concept", "priority": "medium"}}
+    {{"label": "Core Topic", "type": "topic", "priority": "high"}},
+    {{"label": "Specific Algorithm / Method", "type": "algorithm", "priority": "high"}},
+    {{"label": "Underlying Data Structure", "type": "datastructure", "priority": "medium"}},
+    {{"label": "Fundamental Concept / Theorem", "type": "concept", "priority": "medium"}},
+    {{"label": "Problem Class Solved", "type": "problem_class", "priority": "medium"}}
   ],
   "graph_edges": [
-    {{"source": "Source Node Label", "target": "Target Node Label", "relation": "PREREQUISITE_FOR", "context": "Brief context"}}
+    {{"source": "Concept A", "target": "Concept B", "relation": "PREREQUISITE_FOR", "context": "Detailed explanation of relationship"}},
+    {{"source": "Algorithm X", "target": "DataStructure Y", "relation": "USES", "context": "Uses Y for efficient lookup"}},
+    {{"source": "Algorithm X", "target": "ProblemClass Z", "relation": "SOLVES", "context": "Optimal solution for Z"}},
+    {{"source": "Technique M", "target": "Technique N", "relation": "OPTIMIZES", "context": "Reduces time from exponential to polynomial"}},
+    {{"source": "Variation 1", "target": "Base Problem", "relation": "VARIATION_OF", "context": "Generalizes base problem with constraints"}},
+    {{"source": "Subtopic", "target": "Main Domain", "relation": "PART_OF", "context": "Core module of domain"}}
   ]
 }}
 
-Valid relations: PREREQUISITE_FOR, PART_OF, COVERS, RELATED_TO, STUDYING, WORKING_ON
-Keep topics well-structured and educational.
+Guidelines:
+1. Extract 4 to 10 comprehensive topics covering all major sections of the document.
+2. Extract 15 to 30 graph nodes and 15 to 35 rich directed edges.
+3. In `markdown_content`, ensure thorough, educational depth with extensive `[[wikilinks]]` so that Obsidian Graph View blooms into an interconnected network of knowledge.
+4. Strictly valid JSON output only.
 """
 
 
@@ -110,20 +126,31 @@ def _parse_json(text: str) -> dict:
 
 def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) -> Dict[str, Any]:
     """
-    Process PDF:
-      1. Extract text
-      2. Call Gemini for topic decomposition & graph structure
+    Process PDF / Document:
+      1. Extract text across pages
+      2. Call Gemini for deep hierarchical Knowledge Graph & Obsidian Markdown generation
       3. Save metadata to DB
-      4. Save Markdown files to Obsidian vault
-      5. Add nodes and edges to Knowledge Graph
-      6. Index chunks for search
+      4. Save topic Markdown files to Obsidian vault with wikilinks
+      5. Add dense nodes and edges to Knowledge Graph
+      6. Index chunks for Hybrid RAG search
     """
     raw_text, total_pages = extract_text_from_pdf(pdf_bytes, filename=filename)
     file_size = len(pdf_bytes)
 
-    # Call Gemini for structure decomposition
-    content_sample = raw_text[:30000]  # Take first ~30k chars for structure extraction
-    prompt = _DOCUMENT_DECOMPOSITION_PROMPT.format(
+    # Sample up to 50,000 characters across document (beginning, middle, end) if large
+    if len(raw_text) > 50000:
+        chunk_size = 16000
+        content_sample = (
+            raw_text[:chunk_size] +
+            "\n\n... [Middle Sections] ...\n\n" +
+            raw_text[len(raw_text)//2 - chunk_size//2 : len(raw_text)//2 + chunk_size//2] +
+            "\n\n... [Concluding Sections] ...\n\n" +
+            raw_text[-chunk_size:]
+        )
+    else:
+        content_sample = raw_text
+
+    prompt = _DEEP_DOCUMENT_PROMPT.format(
         filename=filename,
         content=content_sample if content_sample.strip() else "(Empty document content)"
     )
@@ -137,16 +164,16 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
         clean_name = filename.rsplit(".", 1)[0].replace("_", " ").title()
         structured = {
             "title": clean_name,
-            "summary": "Document uploaded successfully.",
+            "summary": "Document uploaded and indexed successfully.",
             "topics": [
                 {
                     "topic_name": clean_name,
-                    "summary": f"Notes for {clean_name}",
-                    "markdown_content": f"# {clean_name}\n\n{raw_text[:2000]}",
+                    "summary": f"Core notes for {clean_name}",
+                    "markdown_content": f"# {clean_name}\n\n{raw_text[:3000]}",
                     "key_concepts": []
                 }
             ],
-            "graph_nodes": [{"label": clean_name, "type": "topic", "priority": "medium"}],
+            "graph_nodes": [{"label": clean_name, "type": "topic", "priority": "high"}],
             "graph_edges": []
         }
 
@@ -206,27 +233,27 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
         )
         chunk_id = c_cur.lastrowid
 
-        # Index in FTS5 if table exists
+        # Index in FTS5
         try:
             conn.execute(
                 "INSERT INTO document_chunks_fts (chunk_id, user_id, topic, content) VALUES (?, ?, ?, ?)",
                 (chunk_id, user_id, topic_name, content_md)
             )
         except Exception:
-            pass  # Fallback handles non-FTS queries
+            pass
 
     conn.commit()
 
-    # 3. Add Graph Nodes & Edges
+    # 3. Add Deep Graph Nodes & Semantic Edges
     doc_node_id = get_or_create_node(user_id, "document", title)
     
     # Process graph nodes
     for node_def in structured.get("graph_nodes", []):
         lbl = node_def.get("label")
         ntype = node_def.get("type", "topic")
+        priority = node_def.get("priority", "medium")
         if lbl:
             nid = get_or_create_node(user_id, ntype, lbl)
-            # Connect document to top-level concepts
             add_or_strengthen_edge(user_id, doc_node_id, nid, "COVERS", f"Topic in {title}")
 
     # Process graph edges
@@ -240,6 +267,15 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
             tgt_id = get_or_create_node(user_id, "topic", tgt)
             add_or_strengthen_edge(user_id, src_id, tgt_id, rel, ctx)
 
+    # 4. Link Document to Active Goals
+    active_goals = conn.execute(
+        "SELECT id, label FROM kg_nodes WHERE user_id=? AND type='goal' AND status='active'",
+        (user_id,)
+    ).fetchall()
+    for g in active_goals:
+        # Link goals to document
+        add_or_strengthen_edge(user_id, g["id"], doc_node_id, "STUDIES", f"Study material for {g['label']}")
+
     conn.close()
 
     return {
@@ -249,6 +285,8 @@ def process_and_graph_document(pdf_bytes: bytes, filename: str, user_id: int) ->
         "summary": summary,
         "total_pages": total_pages,
         "topics_created": len(topics),
+        "nodes_created": len(structured.get("graph_nodes", [])),
+        "edges_created": len(structured.get("graph_edges", [])),
         "vault_folder": str(doc_vault_path)
     }
 
@@ -261,13 +299,11 @@ def search_document_chunks(query: str, user_id: int, top_k: int = 3) -> List[Dic
     conn = get_db()
     results = []
 
-    # Clean query for search
     words = [w for w in re.findall(r'\w+', query) if len(w) > 2]
     if not words:
         conn.close()
         return []
 
-    # Try FTS5
     try:
         fts_query = " OR ".join(words)
         rows = conn.execute(
@@ -284,7 +320,6 @@ def search_document_chunks(query: str, user_id: int, top_k: int = 3) -> List[Dic
         for r in rows:
             results.append(dict(r))
     except Exception:
-        # Fallback to standard LIKE queries
         like_clauses = " OR ".join(["c.content LIKE ? OR c.topic LIKE ?" for _ in words])
         params = [user_id]
         for w in words:
@@ -360,7 +395,6 @@ def delete_user_document(doc_id: int, user_id: int) -> bool:
         return False
 
     title = doc["title"]
-    # Delete chunks
     conn.execute("DELETE FROM document_chunks WHERE document_id = ? AND user_id = ?", (doc_id, user_id))
     try:
         conn.execute("DELETE FROM document_chunks_fts WHERE user_id = ?", (user_id,))
@@ -370,7 +404,6 @@ def delete_user_document(doc_id: int, user_id: int) -> bool:
     conn.commit()
     conn.close()
 
-    # Remove vault directory if exists
     try:
         doc_folder = VAULT_DOCS_DIR / _safe_filename(title)
         if doc_folder.exists():
