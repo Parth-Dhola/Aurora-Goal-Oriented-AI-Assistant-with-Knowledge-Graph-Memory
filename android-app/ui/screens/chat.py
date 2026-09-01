@@ -400,7 +400,7 @@ class ChatScreen(Screen):
 
     def open_mcp_info(self, *args):
         """Open Apollo MCP Server status and capabilities dialog."""
-        t = self.THEMES[self.theme_mode]
+        t = THEMES[self.theme_mode]
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(14))
 
         status_text = "[color=38ef7d]Online & Active[/color]" if getattr(self, "mcp_online", False) else "[color=e67e22]Offline (DDG Fallback)[/color]"
@@ -503,7 +503,7 @@ class ChatScreen(Screen):
         self.model_btn.set_icon(icon_name)
 
     def _update_mcp_btn(self, online: bool):
-        t = self.THEMES[self.theme_mode]
+        t = THEMES[self.theme_mode]
         if online:
             self.mcp_btn.set_colors((0.10, 0.38, 0.24, 1))
         else:
