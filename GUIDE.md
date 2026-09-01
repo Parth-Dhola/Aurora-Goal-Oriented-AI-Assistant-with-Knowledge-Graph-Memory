@@ -40,7 +40,7 @@ Aurora solves this by combining **Knowledge Graph Memory** (`kg_nodes` and `kg_e
                         │                                   │
                         ▼                                   ▼
         ┌───────────────────────────────┐   ┌───────────────────────────────┐
-        │   Personal KG Traversal       │   │   Hybrid GraphRAG (FTS5)      │
+        │     Personal KG Traversal     │   │    Hybrid GraphRAG (FTS5)     │
         │ • Active Goals & Priorities   │   │ • Deep Textbook Notes         │
         │ • Prerequisites & Weak Areas  │   │ • Code Snippets & Formulas    │
         │ • Progress & Edge Strengths   │   │ • Linked [[Wikilinks]]        │
@@ -50,12 +50,12 @@ Aurora solves this by combining **Knowledge Graph Memory** (`kg_nodes` and `kg_e
                                           │
                                           ▼
                         ┌───────────────────────────────────┐
-                        │ Context Builder: Markdown Brief   │
+                        │  Context Builder: Markdown Brief  │
                         └─────────────────┬─────────────────┘
                                           │
                                           ▼
                         ┌───────────────────────────────────┐
-                        │  LangGraph CRAG Self-Reflection   │
+                        │   LangGraph CRAG Reasoning Loop   │
                         └───────────────────────────────────┘
 ```
 
@@ -70,20 +70,19 @@ Aurora's reasoning loop is implemented as a 7-node **Corrective RAG (CRAG)** sta
 [extract_entities] ──► [retrieve_context] ──► [grade_context]
                                                     │
                       ┌─────────────────────────────┴─────────────────────────────┐
-                      │ [is_relevant == True]                                     │ [is_relevant == False]
-                      ▼                                                           ▼
-                [generate]                                                  [web_search]
+                      │                                                           │
+                      ▼ [is_relevant == True]                                     ▼ [is_relevant == False]
+                 [generate]                                               [apollo_research]
                       │                                                           │
                       ▼                                                           │
              [check_groundedness]                                                 │
                       │                                                           │
-       ┌──────────────┴──────────────┐                                            │
-  [Grounded]                    [Not Grounded]                                    │
-       │                              │                                           │
-       ▼                              └─────────────────► [web_search] ◄──────────┘
- [Final Actionable Response]                                     │
-                                                                 ▼
-                                                        [generate (with web)]
+        ┌─────────────┴─────────────┐                                             │
+        │                           │                                             │
+        ▼ [Grounded]                ▼ [Not Grounded]                              │
+  [Final Plan]                      └─────────────────────────────────────────────┤
+                                                                                  ▼
+                                                                        [generate (with web)]
 ```
 
 1. **`extract_entities`**: The LLM extracts explicit goals, topics, struggles (`WEAK_AT`, `STRUGGLING_WITH`), and achievements (`COMPLETED`) directly into SQLite.
