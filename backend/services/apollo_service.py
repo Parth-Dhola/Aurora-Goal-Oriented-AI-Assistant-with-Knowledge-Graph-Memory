@@ -28,8 +28,23 @@ if settings.APOLLO_PATH:
         sys.path.insert(0, str(target_path))
 
 import urllib.request
+import concurrent.futures
 
 _mcp_server_instance = None
+
+
+def _run_async(coro_fn):
+    """Run an async coroutine safely across synchronous callers or active running event loops."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(lambda: asyncio.run(coro_fn())).result()
+    else:
+        return asyncio.run(coro_fn())
 
 
 def _ping_url(url: str, timeout: float = 0.5) -> bool:
@@ -178,16 +193,7 @@ def fetch_unified_research_context(query: str, top_k: int = 3) -> str:
             header = f"### [Apollo Anti-Poisoned Research Engine | Intent: {selection.intent.value}]\n\n"
             return header + packed_text
 
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import nest_asyncio
-                nest_asyncio.apply()
-                return loop.run_until_complete(_run())
-            else:
-                return loop.run_until_complete(_run())
-        except RuntimeError:
-            return asyncio.run(_run())
+        return _run_async(_run)
 
     except Exception as e:
         logger.error(f"Apollo unified research execution error: {e}")
@@ -237,11 +243,7 @@ def fetch_academic_papers_context(query: str, top_k: int = 5) -> str:
             ranked = rank_snippets(query, candidates, top_k=top_k)
             return pack_grounded_snippets(ranked)
 
-        try:
-            return asyncio.run(_run())
-        except RuntimeError:
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(_run())
+        return _run_async(_run)
     except Exception as e:
         logger.error(f"Academic paper search error: {e}")
         return _fallback_ddg(query, top_k)
