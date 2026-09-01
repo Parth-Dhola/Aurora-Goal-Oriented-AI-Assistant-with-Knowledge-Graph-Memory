@@ -324,6 +324,29 @@ async def cmd_paper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Research error: {e}")
 
 
+# ── /mcp ───────────────────────────────────────────────────────────────────────
+@require_auth
+async def cmd_mcp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Check Apollo Anti-Poison Research MCP Server status."""
+    try:
+        from services.apollo_service import is_apollo_available
+        online = is_apollo_available()
+        status_line = "🟢 *Online*" if online else "🔴 *Offline (DDG Fallback)*"
+        
+        msg = (
+            "🛡️ *Apollo Research MCP Engine*\n\n"
+            f"• Status: {status_line}\n"
+            f"• Anti-Poison Guard: {'✅ Active (Stripping Prompt Injections)' if online else '⚠️ Basic Fallback'}\n"
+            f"• Reranker: {'⚡ FlashRank CPU Cross-Encoder (<25ms)' if online else 'None (Standard search rank)'}\n"
+            f"• Ingestion Sources: {'arXiv, Semantic Scholar, GitHub, DuckDuckGo' if online else 'DuckDuckGo Live'}\n"
+            "• Architecture: Standalone FastMCP Protocol\n\n"
+            "🔗 [Apollo Repository](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP)"
+        )
+        await update.message.reply_text(msg, parse_mode="Markdown", disable_web_page_preview=True)
+    except Exception as e:
+        await update.message.reply_text(f"❌ MCP status check error: {e}")
+
+
 # ── /plan ──────────────────────────────────────────────────────────────────────
 @require_auth
 async def cmd_plan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -663,6 +686,7 @@ _COMMANDS = [
     BotCommand("login",    "🔐 Connect your Aurora account"),
     BotCommand("logout",   "🚪 Sign out"),
     BotCommand("ask",      "💬 Ask Aurora anything"),
+    BotCommand("mcp",      "🛡️ Check Apollo MCP research engine status"),
     BotCommand("paper",    "🔬 Search arXiv papers & GitHub repos (Apollo)"),
     BotCommand("plan",     "📋 Plan your day based on your goals"),
     BotCommand("model",    "⚙️ Switch AI model (Local, Gemini, OpenAI, Groq)"),
@@ -705,6 +729,7 @@ def main():
     app.add_handler(CommandHandler("start",    cmd_start))
     app.add_handler(CommandHandler("logout",   cmd_logout))
     app.add_handler(CommandHandler("ask",      cmd_ask))
+    app.add_handler(CommandHandler("mcp",      cmd_mcp))
     app.add_handler(CommandHandler("paper",    cmd_paper))
     app.add_handler(CommandHandler("research", cmd_paper))
     app.add_handler(CommandHandler("plan",     cmd_plan))

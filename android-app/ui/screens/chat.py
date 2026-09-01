@@ -118,7 +118,18 @@ class ChatScreen(Screen):
         left_block.add_widget(self.status_dot)
         left_block.add_widget(self.header_title)
 
-        # Right control block: Icon-Only Model Switcher + Theme Toggle + Logout
+        # Right control block: MCP Status + Model Switcher + Theme Toggle + Logout
+        self.mcp_btn = IconButton(
+            icon_name="mcp",
+            text="",
+            bg_color=(0.10, 0.35, 0.24, 1),
+            size_hint=(None, None),
+            size=(dp(38), dp(38)),
+            pos_hint={"center_y": 0.5},
+            radius=10
+        )
+        self.mcp_btn.bind(on_press=self.open_mcp_info)
+
         self.model_btn = IconButton(
             icon_name="llm_gemini",
             text="",
@@ -153,6 +164,7 @@ class ChatScreen(Screen):
         self.logout_btn.bind(on_press=self.logout)
 
         header.add_widget(left_block)
+        header.add_widget(self.mcp_btn)
         header.add_widget(self.model_btn)
         header.add_widget(self.theme_btn)
         header.add_widget(self.logout_btn)
@@ -283,6 +295,7 @@ class ChatScreen(Screen):
         self.theme_btn.set_icon(self.THEME_ICONS.get(self.theme_mode, "theme_aurora"))
         self.theme_btn.set_colors(t["btn_grey"])
 
+        self._update_mcp_btn(getattr(self, "mcp_online", False))
         self.model_btn.set_colors(t["btn_grey"])
         self.logout_btn.set_colors(t["btn_grey"])
 
@@ -385,6 +398,52 @@ class ChatScreen(Screen):
 
         popup.open()
 
+    def open_mcp_info(self, *args):
+        """Open Apollo MCP Server status and capabilities dialog."""
+        t = self.THEMES[self.theme_mode]
+        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(14))
+
+        status_text = "[color=38ef7d]Online & Active[/color]" if getattr(self, "mcp_online", False) else "[color=e67e22]Offline (DDG Fallback)[/color]"
+
+        lbl = Label(
+            text=(
+                f"[b]Apollo Research Engine (MCP)[/b]\n\n"
+                f"• [b]Status:[/b] {status_text}\n"
+                f"• [b]Anti-Poison Filter:[/b] Active\n"
+                f"• [b]Reranker:[/b] FlashRank CPU (<25ms)\n"
+                f"• [b]Sources:[/b] arXiv, Semantic Scholar, GitHub, DuckDuckGo\n"
+                f"• [b]Protocol:[/b] Standalone FastMCP 1.0\n"
+            ),
+            markup=True,
+            font_size=sp(13),
+            color=t["text_primary"],
+            halign="left",
+            valign="top"
+        )
+        lbl.bind(size=lbl.setter("text_size"))
+        content.add_widget(lbl)
+
+        popup = Popup(
+            title="MCP Server Status",
+            content=content,
+            size_hint=(0.92, 0.52),
+            background_color=t["header_bg"]
+        )
+
+        close_btn = Button(
+            text="Close",
+            size_hint_y=None,
+            height=dp(40),
+            background_color=t["btn_primary"],
+            background_normal="",
+            color=(1, 1, 1, 1),
+            font_size=sp(13),
+            bold=True
+        )
+        close_btn.bind(on_press=popup.dismiss)
+        content.add_widget(close_btn)
+        popup.open()
+
     def _make_chip_handler(self, message: str):
         def handler(instance):
             self.text_input.text = message
@@ -432,12 +491,23 @@ class ChatScreen(Screen):
                 self.available_options = res.get("options", [])
                 icon_name = self.LLM_ICONS.get(prov, "llm_gemini")
                 Clock.schedule_once(lambda dt: self._update_model_btn(icon_name), 0)
+
+            mcp_data = res.get("mcp", {})
+            self.mcp_online = mcp_data.get("online", False)
+            Clock.schedule_once(lambda dt: self._update_mcp_btn(self.mcp_online), 0)
         
         threading.Thread(target=_fetch_active_llm, daemon=True).start()
         self._connect_ws()
 
     def _update_model_btn(self, icon_name):
         self.model_btn.set_icon(icon_name)
+
+    def _update_mcp_btn(self, online: bool):
+        t = self.THEMES[self.theme_mode]
+        if online:
+            self.mcp_btn.set_colors((0.10, 0.38, 0.24, 1))
+        else:
+            self.mcp_btn.set_colors(t["btn_grey"])
 
     def _connect_ws(self):
         if not WS_AVAILABLE:

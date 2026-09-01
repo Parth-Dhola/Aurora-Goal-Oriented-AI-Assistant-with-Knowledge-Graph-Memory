@@ -22,10 +22,37 @@ class LLMSwitchRequest(BaseModel):
 
 @router.get("/")
 async def get_llm_status(user: dict = Depends(get_current_user)):
-    """Return active LLM provider and all supported options."""
+    """Return active LLM provider, all supported options, and Apollo MCP status."""
+    from services.apollo_service import is_apollo_available
+    mcp_online = is_apollo_available()
     return {
         "current": get_current_llm_info(),
-        "options": get_available_llm_options()
+        "options": get_available_llm_options(),
+        "mcp": {
+            "name": "Apollo Anti-Poison Research MCP",
+            "online": mcp_online,
+            "status": "online" if mcp_online else "offline",
+            "sources": ["arXiv", "Semantic Scholar", "GitHub", "DuckDuckGo"] if mcp_online else ["DuckDuckGo"],
+            "reranker": "FlashRank CPU Cross-Encoder (<25ms)" if mcp_online else "none",
+            "anti_poison": "active" if mcp_online else "inactive",
+            "repo_url": "https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP"
+        }
+    }
+
+
+@router.get("/mcp")
+async def get_mcp_status(user: dict = Depends(get_current_user)):
+    """Return detailed status of the Apollo Anti-Poison Research MCP Server."""
+    from services.apollo_service import is_apollo_available
+    mcp_online = is_apollo_available()
+    return {
+        "name": "Apollo Anti-Poison Research MCP",
+        "online": mcp_online,
+        "status": "online" if mcp_online else "offline",
+        "sources": ["arXiv", "Semantic Scholar", "GitHub", "DuckDuckGo"] if mcp_online else ["DuckDuckGo"],
+        "reranker": "FlashRank CPU Cross-Encoder (<25ms)" if mcp_online else "none",
+        "anti_poison": "active" if mcp_online else "inactive",
+        "repo_url": "https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP"
     }
 
 
