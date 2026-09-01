@@ -224,13 +224,21 @@ def fetch_academic_papers_context(query: str, top_k: int = 5) -> str:
 
 
 def _fallback_ddg(query: str, max_results: int = 3) -> str:
-    """Standard decoupled DuckDuckGo fallback."""
+    """Standard decoupled DuckDuckGo fallback when Apollo is offline or disabled."""
     try:
         from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=max_results))
-        if not results:
-            return f"No search results found for: {query}"
-        return "\n\n".join(f"**{r['title']}**\n{r['body']}" for r in results)
+        for backend in ("api", "html", "lite"):
+            try:
+                with DDGS() as ddgs:
+                    results = list(ddgs.text(query, max_results=max_results, backend=backend))
+                    if results:
+                        formatted_snippets = "\n\n".join(
+                            f"**{r.get('title', 'Web Result')}**\n{r.get('body', '')}" for r in results
+                        )
+                        return f"### [Web Search Context (DuckDuckGo Live Fallback)]\n\n{formatted_snippets}"
+            except Exception:
+                continue
+        return f"### [Web Search Context]\n\nNo live web search results available for: {query}"
     except Exception as e:
+        logger.warning(f"DuckDuckGo fallback search error: {e}")
         return f"External search unavailable: {e}"
