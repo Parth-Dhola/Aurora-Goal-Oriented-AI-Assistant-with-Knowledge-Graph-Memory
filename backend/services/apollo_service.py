@@ -27,13 +27,37 @@ if settings.APOLLO_PATH:
     if target_path.exists() and str(target_path) not in sys.path:
         sys.path.insert(0, str(target_path))
 
+import urllib.request
+
 _mcp_server_instance = None
 
 
+def _ping_url(url: str, timeout: float = 0.5) -> bool:
+    """Fast non-blocking ping to check if MCP server is online."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Aurora-MCP-Client/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status < 500
+    except Exception:
+        return False
+
+
 def is_apollo_available() -> bool:
-    """Return True if Apollo research engine is enabled and accessible."""
+    """Return True if Apollo research engine is enabled and actively accessible."""
     if not settings.APOLLO_ENABLED:
         return False
+
+    # 1. If an MCP server URL is configured, perform a live heartbeat check
+    if settings.APOLLO_MCP_URL:
+        target_url = settings.APOLLO_MCP_URL
+        if _ping_url(target_url, timeout=0.5):
+            return True
+        base_url = target_url.split("/sse")[0]
+        if base_url != target_url and _ping_url(base_url, timeout=0.5):
+            return True
+        return False
+
+    # 2. In-process library mode fallback
     try:
         import apollo
         return True

@@ -276,6 +276,9 @@ class ChatScreen(Screen):
             except Exception:
                 pass
             self.ws = None
+        if getattr(self, "poll_timer", None):
+            self.poll_timer.cancel()
+            self.poll_timer = None
         app = App.get_running_app()
         app.token = None
         app.username = None
@@ -401,7 +404,6 @@ class ChatScreen(Screen):
     def open_mcp_info(self, *args):
         """Open Apollo MCP Server status and capabilities dialog."""
         t = THEMES[self.theme_mode]
-        content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(14))
 
         status_text = "[color=38ef7d]Online & Active[/color]" if getattr(self, "mcp_online", False) else "[color=e67e22]Offline (DDG Fallback)[/color]"
 
@@ -497,6 +499,7 @@ class ChatScreen(Screen):
             Clock.schedule_once(lambda dt: self._update_mcp_btn(self.mcp_online), 0)
         
         threading.Thread(target=_fetch_active_llm, daemon=True).start()
+        self.poll_timer = Clock.schedule_interval(self._poll_status, 10)
         self._connect_ws()
 
     def _update_model_btn(self, icon_name):
@@ -508,6 +511,24 @@ class ChatScreen(Screen):
             self.mcp_btn.set_colors((0.10, 0.38, 0.24, 1))
         else:
             self.mcp_btn.set_colors(t["btn_grey"])
+
+    def _poll_status(self, dt=None):
+        app = App.get_running_app()
+        if not app or not app.token:
+            return
+        def _worker():
+            res = api_get("/llm/", token=app.token)
+            if "current" in res:
+                prov = res["current"].get("provider", "gemini").lower()
+                self.active_llm = prov
+                self.available_options = res.get("options", [])
+                icon_name = self.LLM_ICONS.get(prov, "llm_gemini")
+                Clock.schedule_once(lambda dt: self._update_model_btn(icon_name), 0)
+
+            mcp_data = res.get("mcp", {})
+            self.mcp_online = mcp_data.get("online", False)
+            Clock.schedule_once(lambda dt: self._update_mcp_btn(self.mcp_online), 0)
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _connect_ws(self):
         if not WS_AVAILABLE:
