@@ -176,17 +176,36 @@ def fetch_unified_research_context(query: str, top_k: int = 3) -> str:
                         ))
 
             if not candidates:
-                ddg_results = search_duckduckgo(query, max_results=top_k)
+                try:
+                    ddg_results = search_duckduckgo(query, max_results=top_k)
+                    candidates = [
+                        GroundedContextSnippet(
+                            source="web",
+                            title=r["title"],
+                            url=r["url"],
+                            content=r["content"],
+                            citation_meta={"engine": "duckduckgo"}
+                        )
+                        for r in ddg_results
+                    ]
+                except Exception as ddg_err:
+                    logger.debug(f"DuckDuckGo search within Apollo rate-limited/failed: {ddg_err}")
+
+            if not candidates:
+                wiki_results = _search_wikipedia_fallback(query, limit=top_k)
                 candidates = [
                     GroundedContextSnippet(
-                        source="web",
+                        source="wikipedia",
                         title=r["title"],
                         url=r["url"],
-                        content=r["content"],
-                        citation_meta={"engine": "duckduckgo"}
+                        content=r["body"],
+                        citation_meta={"engine": "wikipedia"}
                     )
-                    for r in ddg_results
+                    for r in wiki_results
                 ]
+
+            if not candidates:
+                return _fallback_ddg(query, top_k)
 
             ranked = rank_snippets(query, candidates, top_k=top_k)
             packed_text = pack_grounded_snippets(ranked)
@@ -196,7 +215,7 @@ def fetch_unified_research_context(query: str, top_k: int = 3) -> str:
         return _run_async(_run)
 
     except Exception as e:
-        logger.error(f"Apollo unified research execution error: {e}")
+        logger.debug(f"Apollo unified research execution fallback: {e}")
         return _fallback_ddg(query, top_k)
 
 
@@ -249,8 +268,32 @@ def fetch_academic_papers_context(query: str, top_k: int = 5) -> str:
         return _fallback_ddg(query, top_k)
 
 
+def _search_wikipedia_fallback(query: str, limit: int = 3) -> list:
+    """Free, reliable encyclopedia fallback when search engines rate-limit."""
+    try:
+        import urllib.parse
+        import urllib.request
+        import json
+        url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&srlimit={limit}&utf8=&format=json"
+        req = urllib.request.Request(url, headers={"User-Agent": "AuroraAssistant/1.0 (aurora@local.dev)"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            results = []
+            for item in data.get("query", {}).get("search", []):
+                snippet = item.get("snippet", "").replace('<span class="searchmatch">', "").replace("</span>", "")
+                results.append({
+                    "title": item.get("title", "Wikipedia Article"),
+                    "body": snippet,
+                    "url": f"https://en.wikipedia.org/wiki/{urllib.parse.quote(item.get('title', ''))}"
+                })
+            return results
+    except Exception:
+        return []
+
+
 def _fallback_ddg(query: str, max_results: int = 3) -> str:
-    """Standard decoupled DuckDuckGo fallback when Apollo is offline or disabled."""
+    """Multi-tier decoupled search fallback (DuckDuckGo -> Wikipedia -> Clean Prompt)."""
+    # 1. Try DuckDuckGo across all available backends
     try:
         from duckduckgo_search import DDGS
         for backend in ("api", "html", "lite"):
@@ -264,7 +307,19 @@ def _fallback_ddg(query: str, max_results: int = 3) -> str:
                         return f"### [Web Search Context (DuckDuckGo Live Fallback)]\n\n{formatted_snippets}"
             except Exception:
                 continue
-        return f"### [Web Search Context]\n\nNo live web search results available for: {query}"
-    except Exception as e:
-        logger.warning(f"DuckDuckGo fallback search error: {e}")
-        return f"External search unavailable: {e}"
+    except Exception:
+        pass
+
+    # 2. Fallback to Wikipedia encyclopedia search
+    wiki_results = _search_wikipedia_fallback(query, limit=max_results)
+    if wiki_results:
+        formatted_snippets = "\n\n".join(
+            f"**{r.get('title')}**\n{r.get('body')}\nSource: {r.get('url')}" for r in wiki_results
+        )
+        return f"### [Reference Context (Wikipedia Fallback)]\n\n{formatted_snippets}"
+
+    # 3. Clean fallback context instructing LLM to answer using foundational knowledge
+    return (
+        f"### [External Search Context]\n"
+        f"Live search for '{query}' is temporarily rate-limited. Synthesize response using verified Knowledge Graph context and general engineering knowledge."
+    )
