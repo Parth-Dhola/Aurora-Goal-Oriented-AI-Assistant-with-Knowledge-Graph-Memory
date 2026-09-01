@@ -12,5 +12,6 @@ htmlcov/
 *.db
 *.sqlite3
 mlruns/
+.flashrank_cache/
 .DS_Store
 

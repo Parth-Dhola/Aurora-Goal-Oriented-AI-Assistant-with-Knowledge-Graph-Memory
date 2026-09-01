@@ -11,5 +11,6 @@ htmlcov/
 *.sqlite3
 mlruns/
 .DS_Store
+.flashrank_cache/
 android-app/bin/
 android-app/.buildozer/

@@ -136,6 +136,23 @@ The backend queries `/api/llm/` and checks endpoint liveliness. Only configured 
 
 ---
 
+### E. Apollo Anti-Poisoned Research Engine ([Apollo MCP Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP))
+Aurora integrates with **Apollo**, a standalone Model Context Protocol (MCP) server engineered for zero-cost academic paper retrieval, code repository search, and prompt injection defense.
+
+#### System Behavior: When Apollo is ON vs. When Apollo is OFF
+
+| Aspect | Apollo ON (`APOLLO_ENABLED=True`) | Apollo OFF (`APOLLO_ENABLED=False` or Offline) |
+|---|---|---|
+| **Data Sources** | **arXiv** (Atom XML), **Semantic Scholar** (Citations/DOI), **GitHub** (Code/Repos), **DuckDuckGo** | **DuckDuckGo** (Multi-backend: `api` $\rightarrow$ `html` $\rightarrow$ `lite`) |
+| **Query Routing** | Zero-cost local intent classifier routes to academic papers, code, or web | Direct keyword web search |
+| **Anti-Poisoning Filter** | Scans and redacts prompt injection payloads (`system override`, `<<SYS>>`), strips invisible Unicode & BiDi overrides | Standard string sanitization |
+| **Context Reranking** | **FlashRank CPU Cross-Encoder** (`ms-marco-TinyBERT-L-2-v2`, <25ms latency) | Search engine default result ranking |
+| **Output Citations** | Enclosed with paper titles, authors, publication year, arXiv IDs, and GitHub repo URLs | Web title and body snippet summary |
+| **Anti-Hallucination Guard** | High (Context is strictly grounded in peer-reviewed abstracts and verified repository files) | Moderate (Enclosed in tagged `### [Web Search Context]` blocks) |
+| **System Resilience** | If any upstream API fails, automatically falls back to secondary sources or DuckDuckGo | 100% standalone, zero extra services required |
+
+---
+
 ## 3. Step-by-Step Execution Manual
 
 ### Option A: Local Python & Conda Setup
