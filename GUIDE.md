@@ -142,13 +142,26 @@ The backend queries `/api/llm/` and checks endpoint liveliness. Only configured 
 
 | Aspect | Apollo ON (`APOLLO_ENABLED=True`) | Apollo OFF (`APOLLO_ENABLED=False` or Offline) |
 |---|---|---|
-| **Data Sources** | **arXiv** (Atom XML), **Semantic Scholar** (Citations/DOI), **GitHub** (Code/Repos), **DuckDuckGo** | **DuckDuckGo** (Multi-backend: `api` $\rightarrow$ `html` $\rightarrow$ `lite`) |
-| **Query Routing** | Zero-cost local intent classifier routes to academic papers, code, or web | Direct keyword web search |
-| **Anti-Poisoning Filter** | Scans and redacts prompt injection payloads (`system override`, `<<SYS>>`), strips invisible Unicode & BiDi overrides | Standard string sanitization |
-| **Context Reranking** | **FlashRank CPU Cross-Encoder** (`ms-marco-TinyBERT-L-2-v2`, <25ms latency) | Search engine default result ranking |
-| **Output Citations** | Enclosed with paper titles, authors, publication year, arXiv IDs, and GitHub repo URLs | Web title and body snippet summary |
-| **Anti-Hallucination Guard** | High (Context is strictly grounded in peer-reviewed abstracts and verified repository files) | Moderate (Enclosed in tagged `### [Web Search Context]` blocks) |
-| **System Resilience** | If any upstream API fails, automatically falls back to secondary sources or DuckDuckGo | 100% standalone, zero extra services required |
+| **Data Sources** | **arXiv** (Atom XML), **Semantic Scholar** (Citations/DOI), **GitHub** (Code/Repos), **DuckDuckGo**, **Wikipedia** | **Multi-Tier Search Fallback**: DuckDuckGo (`api` $\rightarrow$ `html` $\rightarrow$ `lite`) $\rightarrow$ Wikipedia Search API |
+| **Query Routing** | Zero-cost local intent classifier routes to academic papers, code, or web | Keyword search failover with Wikipedia encyclopedia retrieval |
+| **Anti-Poisoning Filter** | Scans and redacts prompt injection payloads (`system override`, `<<SYS>>`), strips invisible Unicode & BiDi overrides | Standard string sanitization & structural encapsulation |
+| **Context Reranking** | **FlashRank CPU Cross-Encoder** (`ms-marco-TinyBERT-L-2-v2`, <25ms latency) | Natural search relevance score ranking |
+| **Output Citations** | Enclosed with paper titles, authors, publication year, arXiv IDs, and GitHub repo URLs | Factual citations with Wikipedia/web reference links |
+| **Anti-Hallucination Guard** | High (Context is strictly grounded in peer-reviewed abstracts and verified repository files) | Moderate to High (Strictly tagged in `### [Reference Context]` containers) |
+| **System Resilience** | If any upstream API fails or rate-limits, cascades to secondary sources $\rightarrow$ Wikipedia $\rightarrow$ Safe Prompt | 100% standalone, zero extra services or API keys required |
+
+#### Why Multi-Tier Fallbacks Were Built (Architectural Rationale)
+
+1. **Defense Against Upstream Rate-Limiting (DuckDuckGo HTTP 202)**:
+   - Public web search APIs frequently rate-limit automated agents or entire residential/cloud IP subnets during burst queries.
+   - Without a tiered fallback, an `HTTP 202 Ratelimit` error would cause the agent to fail. Aurora catches this seamlessly and cascades down the pipeline with zero user interruption.
+2. **Deterministic, Zero-Cost High-Availability (Wikipedia API)**:
+   - Wikipedia's MediaWiki OpenSearch API is lightning-fast (<50ms), 100% free, requires no API credentials, and never rate-limits.
+   - For general concepts, frameworks, and tools, it guarantees factual grounding even when commercial search engines block requests.
+3. **Decoupled Standalone Portability**:
+   - Aurora is designed to run anywhere — locally on a MacBook, on a Raspberry Pi 5, or inside a Docker container — without mandatory dependencies on external MCP servers or paid search APIs.
+4. **Strict Anti-Hallucination Containment**:
+   - If every external network source fails or is blocked, the pipeline injects an explicit constraint container (`### [External Search Context]` notice). This instructs the LLM to synthesize its answer solely from verified Knowledge Graph memory and reasoning, preventing it from inventing fake citations or hallucinating nonexistent research papers.
 
 ---
 
