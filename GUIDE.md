@@ -136,8 +136,8 @@ The backend queries `/api/llm/` and checks endpoint liveliness. Only configured 
 
 ---
 
-### E. Apollo Anti-Poisoned Research Engine ([Apollo MCP Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP))
-Aurora integrates with **Apollo**, a standalone Model Context Protocol (MCP) server engineered for zero-cost academic paper retrieval, code repository search, and prompt injection defense.
+### E. Apollo Anti-Poisoned Research Engine Tool ([Apollo MCP Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP))
+**Apollo** is a modular Model Context Protocol (MCP) tool component used by Aurora for zero-cost academic paper retrieval, open-source code search, and prompt injection defense.
 
 #### System Behavior: When Apollo is ON vs. When Apollo is OFF
 
