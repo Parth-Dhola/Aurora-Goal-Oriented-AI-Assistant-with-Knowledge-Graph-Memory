@@ -287,12 +287,13 @@ curl -X POST http://localhost:8000/api/kg/export/obsidian -H "Authorization: Bea
 
 ## 8. Automated Testing & CI/CD Pipeline
 
-Aurora includes a 30-case automated test suite covering:
+Aurora includes a 33-case automated test suite covering:
 - Authentication & JWT security
 - Goal & Task CRUD operations
 - Knowledge Graph traversal & Obsidian export
 - Document upload, chunking, and decomposition
 - Multi-LLM provider status & dynamic switching
+- Apollo research engine integration, anti-poisoning filter, and fallback
 
 ### Running Tests:
 ```bash
@@ -302,4 +303,54 @@ pytest tests/ -v
 
 ### GitHub Actions CI/CD:
 - **`ci-cd.yml`**: Runs on every push/PR to execute unit tests and build Docker images (<30 seconds).
-- **`build-apk.yml`**: Runs only on manual `workflow_dispatch` trigger to build the Android APK.
+- **`build-apk.yml`**: Runs on manual `workflow_dispatch` trigger to compile the Android APK via Buildozer.
+
+---
+
+## 9. Developer Observability & Call Auditing (API, LLM & MCP Logs)
+
+Aurora provides multiple layers for inspecting agent reasoning, external API calls, and MCP server responses:
+
+### A. Live SQLite Strategy & LLM Audit Table
+Every single CRAG invocation, strategy path (`direct`, `graph_hit`, `apollo_research`), prompt hash, latency, token count, and KG node count is logged to `backend/aurora.db`.
+
+To inspect recent assistant calls from terminal:
+```bash
+sqlite3 backend/aurora.db \
+  "SELECT id, strategy, model, latency_ms, kg_nodes_used, created_at FROM llm_logs ORDER BY id DESC LIMIT 10;" -header -column
+```
+
+### B. MLflow Experiment Tracking Dashboard
+To launch the interactive visual dashboard for latency distributions, token usage, and A/B prompt comparisons:
+
+```bash
+cd backend
+conda run -n aurora mlflow ui --port 5001
+```
+Open **`http://localhost:5001`** in your browser to inspect runs, parameters, and metric plots.
+
+### C. Live HTTP Diagnostics & Latency Tracking
+- Every HTTP response from the FastAPI backend contains a diagnostic header `X-Process-Time` showing backend processing duration (e.g. `X-Process-Time: 0.3841s`).
+- Uvicorn server logs print incoming request paths, response status codes, and execution timings in real time.
+
+### D. Testing & Inspecting Apollo MCP Research Calls
+To trace Apollo's intent classifier, raw retrieved arXiv/GitHub candidates, and FlashRank cross-encoder reranking scores for a specific query:
+
+```bash
+# 1. Intent routing test
+python -m apollo.router.tool_selector "How to implement FlashAttention in PyTorch"
+
+# 2. Multi-source retrieval & anti-poisoning trace
+conda run -n aurora python3 -c "
+import sys
+sys.path.insert(0, 'backend')
+from services.apollo_service import fetch_unified_research_context
+print(fetch_unified_research_context('Graph Attention Networks', top_k=2))
+"
+```
+
+### E. System Analytics API Endpoint
+Fetch aggregated strategy and productivity analytics via REST:
+```bash
+curl -s -H "Authorization: Bearer <JWT_TOKEN>" http://localhost:8000/api/stats/ | python3 -m json.tool
+```

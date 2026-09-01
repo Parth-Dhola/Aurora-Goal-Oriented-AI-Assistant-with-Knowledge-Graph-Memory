@@ -9,10 +9,14 @@ Tracks per-run:
 
 import os
 import hashlib
+from pathlib import Path
+
+_BACKEND_DIR = Path(__file__).parent.parent.resolve()
+_DEFAULT_MLRUNS = str(_BACKEND_DIR / "mlruns")
 
 try:
     import mlflow
-    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "mlruns"))
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", _DEFAULT_MLRUNS))
     mlflow.set_experiment("aurora-crag-agent")
     MLFLOW_ENABLED = True
 except Exception:
