@@ -90,7 +90,7 @@ Aurora's reasoning loop is implemented as a 7-node **Corrective RAG (CRAG)** sta
 3. **`grade_context`**: A self-reflection node that evaluates whether the retrieved brief contains sufficient context to formulate a personalized answer.
 4. **`generate`**: Executes chain-of-thought generation synthesized specifically for the user's active goals and constraints.
 5. **`check_groundedness`**: Verifies that the proposed solution does not hallucinate facts outside the verified context.
-6. **`Apollo Research Engine (MCP)`**: If context is missing or ungrounded, queries **arXiv**, **Semantic Scholar**, **GitHub**, and **DuckDuckGo** in parallel, filters prompt injections, applies **FlashRank CPU cross-encoder reranking**, and synthesizes an anti-poisoned, citation-grounded response.
+6. **`Apollo Research Engine & Multi-Tier Fallback`**: If context is missing or ungrounded, queries **arXiv**, **Semantic Scholar**, and **GitHub** in parallel with **FlashRank CPU cross-encoder reranking**. If disabled or rate-limited by DuckDuckGo (HTTP 202), seamlessly cascades to the **Wikipedia OpenSearch API** and structured anti-hallucination context blocks.
 
 ---
 
@@ -149,6 +149,45 @@ The backend queries `/api/llm/` and checks endpoint liveliness. Only configured 
 | **Output Citations** | Enclosed with paper titles, authors, publication year, arXiv IDs, and GitHub repo URLs | Factual citations with Wikipedia/web reference links |
 | **Anti-Hallucination Guard** | High (Context is strictly grounded in peer-reviewed abstracts and verified repository files) | Moderate to High (Strictly tagged in `### [Reference Context]` containers) |
 | **System Resilience** | If any upstream API fails or rate-limits, cascades to secondary sources $\rightarrow$ Wikipedia $\rightarrow$ Safe Prompt | 100% standalone, zero extra services or API keys required |
+
+#### Multi-Tier Fallback Cascade Flow
+
+```
+                      [Trigger Fallback (KG Insufficient)]
+                                       │
+                                       ▼
+            ┌────────────────────────────────────────────────────┐
+            │ Tier 1: Apollo Multi-Source Engine (MCP)           │
+            │ • Intent Classifier (Academic / Code / General)    │
+            │ • Queries arXiv Atom XML, S2, GitHub in parallel   │
+            │ • In-Memory Prompt Injection Sanitizer             │
+            │ • FlashRank CPU Cross-Encoder Reranker (<25ms)     │
+            └──────────────────────────┬─────────────────────────┘
+                                       │ (If offline / no hits)
+                                       ▼
+            ┌────────────────────────────────────────────────────┐
+            │ Tier 2: DuckDuckGo Multi-Backend Search            │
+            │ • Failover: backend="api" -> "html" -> "lite"      │
+            └──────────────────────────┬─────────────────────────┘
+                                       │ (If HTTP 202 Rate-Limited)
+                                       ▼
+            ┌────────────────────────────────────────────────────┐
+            │ Tier 3: Wikipedia MediaWiki API (OpenSearch)       │
+            │ • Fast (<50ms), 100% Free, 0 Rate Limits           │
+            │ • Extracts structured encyclopedic context         │
+            └──────────────────────────┬─────────────────────────┘
+                                       │ (If network unreachable)
+                                       ▼
+            ┌────────────────────────────────────────────────────┐
+            │ Tier 4: Contained Foundation Synthesis             │
+            │ • Tag: ### [External Search Context]               │
+            │ • LLM synthesizes from pure reasoning & KG facts   │
+            │ • Strict prompt constraint: Zero fake citations    │
+            └──────────────────────────┬─────────────────────────┘
+                                       │
+                                       ▼
+                         [generate_from_web_node]
+```
 
 #### Why Multi-Tier Fallbacks Were Built (Architectural Rationale)
 

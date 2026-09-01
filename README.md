@@ -46,7 +46,7 @@
 │   ┌───────────────┐     ┌───────────────────────┐                                      │
 │   │ 4. generate   │     │ 6. Apollo Research    │ ◄── Multi-Source Research (arXiv,    │
 │   │  (CoT/ReAct)  │     │    Engine (MCP)       │     Semantic Scholar, GitHub, DDG)   │
-│   └───────┬───────┘     └───────────┬───────────┘     + FlashRank Anti-Poisoning       │
+│   └───────┬───────┘     └───────────┬───────────┘     + FlashRank & Wikipedia Fallback │
 │           │                         │                                                  │
 │           ▼                         │                                                  │
 │   ┌───────────────────────┐         │                                                  │
