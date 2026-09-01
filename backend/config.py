@@ -3,6 +3,7 @@ config.py — Centralized Typed Configuration for Aurora Backend
 """
 import os
 from pathlib import Path
+from typing import Optional
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -54,10 +55,10 @@ class Settings:
     VAULT_DIR: Path = _ROOT_DIR / "obsidian-KG-vault"
     MAX_UPLOAD_SIZE_BYTES: int = 50 * 1024 * 1024  # 50 MB
 
-    # Apollo Research Engine Integration
+    # Optional Apollo MCP Research Engine Integration (Standalone / Decoupled)
     APOLLO_ENABLED: bool = os.getenv("APOLLO_ENABLED", "True").lower() in ("true", "1", "yes")
-    APOLLO_PATH: str = os.getenv("APOLLO_PATH", "/Users/apple/Downloads/Apollo")
-    APOLLO_MCP_URL: str = os.getenv("APOLLO_MCP_URL", "http://localhost:8080/sse")
+    APOLLO_PATH: Optional[str] = os.getenv("APOLLO_PATH", None)
+    APOLLO_MCP_URL: Optional[str] = os.getenv("APOLLO_MCP_URL", "http://localhost:8080/sse")
 
 
 settings = Settings()
