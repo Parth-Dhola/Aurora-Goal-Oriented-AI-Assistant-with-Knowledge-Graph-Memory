@@ -143,3 +143,4 @@ yarn-error.log*
 *.swo
 *~
 .cache/
+.flashrank_cache/

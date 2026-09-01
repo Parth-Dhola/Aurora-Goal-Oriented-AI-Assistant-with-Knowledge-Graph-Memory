@@ -302,6 +302,28 @@ async def handle_direct_chat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _safe_send_reply(update, reply)
 
 
+# ── /paper & /research ────────────────────────────────────────────────────────
+@require_auth
+async def cmd_paper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Directly query Apollo for academic research papers, citations, and repositories."""
+    query = " ".join(ctx.args).strip()
+    if not query:
+        await update.message.reply_text(
+            "Usage: /paper <topic or question>\nExample: /paper FlashAttention-2 memory optimization"
+        )
+        return
+
+    thinking = await update.message.reply_text("🔬 Searching arXiv, Semantic Scholar, and GitHub via Apollo...")
+    try:
+        from services.apollo_service import fetch_unified_research_context
+        results = fetch_unified_research_context(query, top_k=3)
+        await thinking.delete()
+        await _safe_send_reply(update, results)
+    except Exception as e:
+        await thinking.delete()
+        await update.message.reply_text(f"❌ Research error: {e}")
+
+
 # ── /plan ──────────────────────────────────────────────────────────────────────
 @require_auth
 async def cmd_plan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -637,17 +659,18 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── Command suggestions (shown when user types /) ──────────────────────────────
 _COMMANDS = [
-    BotCommand("start",   "👋 Welcome and login status"),
-    BotCommand("login",   "🔐 Connect your Aurora account"),
-    BotCommand("logout",  "🚪 Sign out"),
-    BotCommand("ask",     "💬 Ask Aurora anything"),
-    BotCommand("plan",    "📋 Plan your day based on your goals"),
-    BotCommand("model",   "⚙️ Switch AI model (Local, Gemini, OpenAI, Groq)"),
-    BotCommand("docs",    "📄 View uploaded study documents"),
-    BotCommand("goals",   "🎯 View your active goals"),
-    BotCommand("addgoal", "➕ Add a new goal (e.g. /addgoal Lose weight high)"),
-    BotCommand("stats",   "📊 Productivity dashboard and KG stats"),
-    BotCommand("help",    "❓ List all commands"),
+    BotCommand("start",    "👋 Welcome and login status"),
+    BotCommand("login",    "🔐 Connect your Aurora account"),
+    BotCommand("logout",   "🚪 Sign out"),
+    BotCommand("ask",      "💬 Ask Aurora anything"),
+    BotCommand("paper",    "🔬 Search arXiv papers & GitHub repos (Apollo)"),
+    BotCommand("plan",     "📋 Plan your day based on your goals"),
+    BotCommand("model",    "⚙️ Switch AI model (Local, Gemini, OpenAI, Groq)"),
+    BotCommand("docs",     "📄 View uploaded study documents"),
+    BotCommand("goals",    "🎯 View your active goals"),
+    BotCommand("addgoal",  "➕ Add a new goal (e.g. /addgoal Lose weight high)"),
+    BotCommand("stats",    "📊 Productivity dashboard and KG stats"),
+    BotCommand("help",     "❓ List all commands"),
 ]
 
 
@@ -679,17 +702,19 @@ def main():
     )
 
     app.add_handler(login_conv)
-    app.add_handler(CommandHandler("start",   cmd_start))
-    app.add_handler(CommandHandler("logout",  cmd_logout))
-    app.add_handler(CommandHandler("ask",     cmd_ask))
-    app.add_handler(CommandHandler("plan",    cmd_plan))
-    app.add_handler(CommandHandler("model",   cmd_model))
-    app.add_handler(CommandHandler("llm",     cmd_model))
-    app.add_handler(CommandHandler("docs",    cmd_docs))
-    app.add_handler(CommandHandler("goals",   cmd_goals))
-    app.add_handler(CommandHandler("addgoal", cmd_addgoal))
-    app.add_handler(CommandHandler("stats",   cmd_stats))
-    app.add_handler(CommandHandler("help",    cmd_help))
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("logout",   cmd_logout))
+    app.add_handler(CommandHandler("ask",      cmd_ask))
+    app.add_handler(CommandHandler("paper",    cmd_paper))
+    app.add_handler(CommandHandler("research", cmd_paper))
+    app.add_handler(CommandHandler("plan",     cmd_plan))
+    app.add_handler(CommandHandler("model",    cmd_model))
+    app.add_handler(CommandHandler("llm",      cmd_model))
+    app.add_handler(CommandHandler("docs",     cmd_docs))
+    app.add_handler(CommandHandler("goals",    cmd_goals))
+    app.add_handler(CommandHandler("addgoal",  cmd_addgoal))
+    app.add_handler(CommandHandler("stats",    cmd_stats))
+    app.add_handler(CommandHandler("help",     cmd_help))
     app.add_handler(CallbackQueryHandler(handle_model_switch, pattern="^llm:"))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     # Direct chat handler for normal text messages

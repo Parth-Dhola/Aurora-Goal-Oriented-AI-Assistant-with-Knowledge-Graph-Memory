@@ -91,7 +91,7 @@ Aurora's reasoning loop is implemented as a 7-node **Corrective RAG (CRAG)** sta
 3. **`grade_context`**: A self-reflection node that evaluates whether the retrieved brief contains sufficient context to formulate a personalized answer.
 4. **`generate`**: Executes chain-of-thought generation synthesized specifically for the user's active goals and constraints.
 5. **`check_groundedness`**: Verifies that the proposed solution does not hallucinate facts outside the verified context.
-6. **`web_search`**: If context is missing or ungrounded, queries DuckDuckGo dynamically for up-to-date documentation and synthesizes the final response.
+6. **`Apollo Research Engine (MCP)`**: If context is missing or ungrounded, queries **arXiv**, **Semantic Scholar**, **GitHub**, and **DuckDuckGo** in parallel, filters prompt injections, applies **FlashRank CPU cross-encoder reranking**, and synthesizes an anti-poisoned, citation-grounded response.
 
 ---
 

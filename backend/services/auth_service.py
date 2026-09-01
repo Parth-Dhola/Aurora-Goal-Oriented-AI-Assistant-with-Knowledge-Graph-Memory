@@ -11,7 +11,7 @@ from models.database import get_db
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "aurora-dev-secret-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "aurora-super-secret-key-32-bytes-long-for-hmac-sha256-production")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24 * 7
 security = HTTPBearer()

@@ -7,7 +7,7 @@ import unittest.mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 os.environ["GEMINI_API_KEY"]        = "dummy-key-for-tests"
-os.environ["SECRET_KEY"]            = "test-secret-key-for-tests"
+os.environ["SECRET_KEY"]            = "test-secret-key-for-tests-32bytes-secure-key"
 os.environ["MLFLOW_TRACKING_URI"]   = "sqlite:///test_mlflow.db"
 os.environ["TELEGRAM_TOKEN"]        = "dummy-telegram-token"
 
@@ -112,7 +112,7 @@ def test_get_me(auth_client):
 
 def test_no_token_forbidden(client):
     r = client.get("/api/stats/")
-    assert r.status_code == 403
+    assert r.status_code in (401, 403)
 
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────

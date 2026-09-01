@@ -2,7 +2,7 @@
 
 [![CI/CD](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions)
 [![Android APK](https://img.shields.io/badge/Android%20APK-Ready%20(Buildozer)-success.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions/workflows/build-apk.yml)
-[![Tests](https://img.shields.io/badge/tests-30%20passed-brightgreen.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions)
+[![Tests](https://img.shields.io/badge/tests-33%20passed-brightgreen.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688)](https://fastapi.tiangolo.com)
@@ -44,9 +44,9 @@
 │       │                     │                                                          │
 │       ▼                     ▼                                                          │
 │   ┌───────────────┐     ┌───────────────────────┐                                      │
-│   │ 4. generate   │     │ 6. web_search         │ ◄── DuckDuckGo Search                │
-│   │  (CoT/ReAct)  │     │    (Live fallback)    │                                      │
-│   └───────┬───────┘     └───────────┬───────────┘                                      │
+│   │ 4. generate   │     │ 6. Apollo Research    │ ◄── Multi-Source Research (arXiv,     │
+│   │  (CoT/ReAct)  │     │    Engine (MCP)       │     Semantic Scholar, GitHub, DDG)    │
+│   └───────┬───────┘     └───────────┬───────────┘     + FlashRank Anti-Poisoning      │
 │           │                         │                                                  │
 │           ▼                         │                                                  │
 │   ┌───────────────────────┐         │                                                  │
@@ -70,7 +70,7 @@
 │                                                                                        │
 │  ┌───────────────────────┐   ┌───────────────────────┐   ┌──────────────────────────┐  │
 │  │   Android App (Kivy)  │   │  Telegram Bot (v20+)  │   │  FastAPI REST / WS API   │  │
-│  │  3 Themes + PDF Upload│   │  /docs, /plan, /goals │   │  Swagger Docs & Auth     │  │
+│  │  3 Themes + PDF Upload│   │  /paper, /docs, /plan │   │  Swagger Docs & Auth     │  │
 │  │  OpenGL Status Dot    │   │  /model 1-Tap Switch  │   │  Multi-LLM Switcher      │  │
 │  └───────────────────────┘   └───────────────────────┘   └──────────────────────────┘  │
 │                                                                                        │
@@ -97,13 +97,14 @@
 
 | Feature | Description |
 |---|---|
-| **CRAG Agent** | 7-node LangGraph StateGraph — extract, retrieve, grade, generate, check groundedness, web search |
+| **CRAG Agent** | 7-node LangGraph StateGraph — extract, retrieve, grade, generate, check groundedness, Apollo research |
+| **Apollo Research (MCP)** | Anti-poisoned multi-source research engine querying **arXiv**, **Semantic Scholar**, **GitHub**, and **DuckDuckGo** with **FlashRank CPU reranking** |
 | **Multi-LLM Engine** | Dynamic runtime switching between **Gemini**, **Local LLMs (llama.cpp/Ollama)**, **OpenAI**, **Claude**, and **Groq** |
 | **Hybrid GraphRAG** | Ingests PDFs & textbooks, extracts hierarchical topics, algorithms, and links them to the KG |
 | **Obsidian Vault Sync** | Bi-directional Markdown export of your Knowledge Graph with live `[[wikilinks]]` and Dataview tables |
 | **Modular Android App** | Kivy mobile/desktop app with real PNG icon assets, OpenGL vector status dot, soft keyboard avoidance, and 3 themes |
-| **Telegram Bot** | Full conversational interface with 1-tap `/model` switcher, file ingestion, and goal tracking |
-| **CI/CD & Pytest** | 30 automated test cases with manual 1-click APK build workflow |
+| **Telegram Bot** | Full conversational interface with `/paper` research query, 1-tap `/model` switcher, file ingestion, and goal tracking |
+| **CI/CD & Pytest** | 33 automated test cases with manual 1-click APK build workflow |
 
 ---
 

@@ -72,14 +72,15 @@ _WEB_GENERATE_PROMPT = """{system}
 
 {context}
 
-Additional information retrieved from the web:
+---
+Verified Research & External Context (from Apollo Anti-Poisoned Engine):
 {web_results}
 
 ---
 Think step by step before answering:
-1. What from the user's context and the web results is relevant here?
-2. What is the user specifically asking?
-3. Synthesise a concise, actionable answer.
+1. Review the user's personal goals, knowledge graph context, and the verified research results above.
+2. If academic papers, code repositories, or algorithms are present, cite paper authors, arXiv IDs, or GitHub links accurately.
+3. Synthesise a clear, actionable response tailored to the user's specific query.
 
 User: {query}
 
@@ -173,18 +174,14 @@ def check_groundedness_node(state: AgentState) -> AgentState:
 
 
 def web_search_node(state: AgentState) -> AgentState:
-    """Fallback: DuckDuckGo search, no API key required."""
+    """Multi-source research node powered by Apollo Anti-Poisoned MCP Engine (arXiv, S2, GitHub, DDG)."""
     try:
-        from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            results = list(ddgs.text(state["query"], max_results=3))
-        web_text = "\n\n".join(
-            f"**{r['title']}**\n{r['body']}" for r in results
-        )
+        from services.apollo_service import fetch_unified_research_context
+        web_text = fetch_unified_research_context(state["query"], top_k=3)
     except Exception as e:
-        print(f"[CRAG] Web search error: {e}")
+        print(f"[CRAG] Apollo research error: {e}")
         web_text = ""
-    return {**state, "web_results": web_text, "strategy": "web_fallback"}
+    return {**state, "web_results": web_text, "strategy": "apollo_research"}
 
 
 def generate_from_web_node(state: AgentState) -> AgentState:

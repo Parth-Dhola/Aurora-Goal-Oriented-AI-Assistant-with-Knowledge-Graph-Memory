@@ -61,11 +61,11 @@ class ChatScreen(Screen):
 
     SUGGESTIONS = [
         ("Plan Day",       "Plan my day. What should I focus on given my current goals?"),
+        ("Research Paper", "Find the latest research papers and code implementations on Graph Neural Networks."),
         ("My Goals",       "What are my current goals and how am I doing on each?"),
         ("Study Notes",    "Summarize the key concepts from my uploaded notes."),
         ("Progress",       "Give me a progress summary across all my goals."),
         ("What to Study?", "What should I study or work on today?"),
-        ("Motivate Me",    "Give me a short motivational push for today."),
         ("Weak Areas",     "What are my weakest areas that I should improve?"),
         ("Weekly Review",  "Give me a weekly review of what I've accomplished."),
     ]
