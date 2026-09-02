@@ -307,8 +307,8 @@ def test_get_llm_status(auth_client):
     assert r.status_code == 200
     data = r.json()
     assert "current" in data
-    assert "options" in data
-    assert len(data["options"]) >= 4
+    assert len(data["options"]) >= 1
+    assert all(opt["configured"] is True for opt in data["options"])
 
 
 def test_switch_llm_provider(auth_client):

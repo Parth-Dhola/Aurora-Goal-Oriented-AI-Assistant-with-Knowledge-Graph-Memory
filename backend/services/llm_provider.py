@@ -163,8 +163,9 @@ def set_active_llm(provider: str, model: Optional[str] = None) -> Dict[str, Any]
     return get_current_llm_info()
 
 
-def get_available_llm_options() -> list:
+def get_available_llm_options(only_configured: bool = False) -> list:
     """Return all supported LLM providers with available models and active status."""
+    load_dotenv(override=True)
     curr = get_current_llm_info()
 
     # Check if local LLM is currently active or alive on network
@@ -183,8 +184,9 @@ def get_available_llm_options() -> list:
                 elif "models" in data and isinstance(data["models"], list):
                     local_models = [m.get("name", m.get("id", "")) for m in data["models"]]
         except Exception:
-            if curr["provider"] in ("local", "ollama", "lmstudio", "vllm"):
-                local_configured = True
+            local_configured = False
+    elif os.getenv("LLM_PROVIDER") in ("local", "ollama", "lmstudio", "vllm"):
+        local_configured = True
 
     if not local_models:
         local_model_default = os.getenv("LOCAL_LLM_MODEL", "qwen3.5-2b")
@@ -234,6 +236,8 @@ def get_available_llm_options() -> list:
             "active": curr["provider"] == "anthropic"
         }
     ]
+    if only_configured:
+        return [opt for opt in options if opt["configured"]]
     return options
 
 

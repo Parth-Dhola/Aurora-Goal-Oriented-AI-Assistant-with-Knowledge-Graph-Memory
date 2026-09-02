@@ -27,7 +27,7 @@ async def get_llm_status(user: dict = Depends(get_current_user)):
     mcp_online = is_apollo_available()
     return {
         "current": get_current_llm_info(),
-        "options": get_available_llm_options(),
+        "options": get_available_llm_options(only_configured=True),
         "mcp": {
             "name": "Apollo Anti-Poison Research MCP",
             "online": mcp_online,
