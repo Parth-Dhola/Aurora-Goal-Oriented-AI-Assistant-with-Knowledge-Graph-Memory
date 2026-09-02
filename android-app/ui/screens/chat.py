@@ -341,13 +341,14 @@ class ChatScreen(Screen):
         popup = Popup(
             title="Available AI Models",
             content=content,
-            size_hint=(0.92, 0.58),
+            size_hint=(0.94, 0.70),
             background_color=t["header_bg"]
         )
 
         def switch_to(provider, model_name, label_text):
             popup.dismiss()
             self.active_llm = provider.lower()
+            self.active_model = model_name
             self.model_btn.set_icon(self.LLM_ICONS.get(self.active_llm, "llm_gemini"))
             self.add_bubble(f"Switching AI model to {label_text}...", is_user=True)
             
@@ -362,35 +363,46 @@ class ChatScreen(Screen):
             
             threading.Thread(target=_worker, daemon=True).start()
 
-        # Show only configured options
+        # Scrollable container for all available models
+        scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+        model_list_box = BoxLayout(orientation="vertical", spacing=dp(6), size_hint_y=None)
+        model_list_box.bind(minimum_height=model_list_box.setter('height'))
+
         configured_models = [opt for opt in self.available_options if opt.get("configured")]
         if not configured_models:
-            configured_models = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite"}]
+            configured_models = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite", "models": ["gemini-3.1-flash-lite"]}]
+
+        current_active_model = getattr(self, "active_model", "")
 
         for opt in configured_models:
             prov = opt.get("id")
-            mname = opt.get("default_model")
-            name = opt.get("name", prov.capitalize())
-            label_text = f"{name} ({mname})"
-            is_active = (prov.lower() == self.active_llm.lower())
+            pname = opt.get("name", prov.capitalize())
+            model_sublist = opt.get("models") or [opt.get("default_model")]
 
-            btn = Button(
-                text=label_text,
-                size_hint_y=None,
-                height=dp(44),
-                background_color=t["btn_primary"] if is_active else t["chip_bg"],
-                background_normal="",
-                color=(1, 1, 1, 1) if is_active else t["chip_fg"],
-                font_size=sp(13),
-                bold=True
-            )
-            btn.bind(on_press=lambda inst, p=prov, m=mname, l=label_text: switch_to(p, m, l))
-            content.add_widget(btn)
+            for mname in model_sublist:
+                label_text = f"{pname} • {mname}"
+                is_active = (prov.lower() == self.active_llm.lower() and (current_active_model == mname or not current_active_model and mname == opt.get("default_model")))
+
+                btn = Button(
+                    text=label_text,
+                    size_hint_y=None,
+                    height=dp(42),
+                    background_color=t["btn_primary"] if is_active else t["chip_bg"],
+                    background_normal="",
+                    color=(1, 1, 1, 1) if is_active else t["chip_fg"],
+                    font_size=sp(12),
+                    bold=True
+                )
+                btn.bind(on_press=lambda inst, p=prov, m=mname, l=label_text: switch_to(p, m, l))
+                model_list_box.add_widget(btn)
+
+        scroll.add_widget(model_list_box)
+        content.add_widget(scroll)
 
         close_btn = Button(
             text="Close",
             size_hint_y=None,
-            height=dp(40),
+            height=dp(38),
             background_color=t["btn_grey"],
             background_normal="",
             color=t["btn_grey_fg"],

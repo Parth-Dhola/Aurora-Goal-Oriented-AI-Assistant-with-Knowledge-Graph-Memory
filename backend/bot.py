@@ -591,12 +591,14 @@ async def cmd_model(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         for opt in configured_opts:
             prov = opt.get("id")
             pname = opt.get("name", prov.capitalize())
-            mname = opt.get("default_model")
-            btn = InlineKeyboardButton(f"{pname} ({mname})", callback_data=f"llm:{prov}:{mname}")
-            row.append(btn)
-            if len(row) == 2:
-                buttons.append(row)
-                row = []
+            model_sublist = opt.get("models") or [opt.get("default_model")]
+            for mname in model_sublist:
+                short_m = mname.split("/")[-1] if "/" in mname else mname
+                btn = InlineKeyboardButton(f"{pname} • {short_m}", callback_data=f"llm:{prov}:{mname}")
+                row.append(btn)
+                if len(row) == 2:
+                    buttons.append(row)
+                    row = []
         if row:
             buttons.append(row)
 

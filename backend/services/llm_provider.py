@@ -211,6 +211,36 @@ def get_available_llm_options(only_configured: bool = False) -> list:
     else:
         local_model_default = local_models[0]
 
+    # Dynamic Groq model discovery
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    groq_models = []
+    if groq_key:
+        try:
+            import requests
+            r = requests.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {groq_key}"},
+                timeout=1.0
+            )
+            if r.status_code == 200:
+                data = r.json()
+                raw_models = [m["id"] for m in data.get("data", [])]
+                groq_models = [m for m in raw_models if not m.startswith("whisper") and "guard" not in m]
+        except Exception:
+            pass
+
+    if not groq_models:
+        groq_models = [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+            "qwen/qwen3.6-27b",
+            "groq/compound",
+            "groq/compound-mini",
+            "allam-2-7b",
+            "canopylabs/orpheus-v1-english"
+        ]
+
     options = [
         {
             "id": "gemini",
@@ -239,9 +269,9 @@ def get_available_llm_options(only_configured: bool = False) -> list:
         {
             "id": "groq",
             "name": "Groq",
-            "default_model": "openai/gpt-oss-120b",
-            "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound"],
-            "configured": bool(os.getenv("GROQ_API_KEY")),
+            "default_model": groq_models[0] if groq_models else "openai/gpt-oss-120b",
+            "models": groq_models,
+            "configured": bool(groq_key),
             "active": curr["provider"] == "groq"
         },
         {
