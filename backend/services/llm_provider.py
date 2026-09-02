@@ -99,7 +99,24 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             r = self.requests.post(f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=60)
             if r.status_code == 200:
                 data = r.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"].get("content", "")
+                if "<think>" in content and "</think>" in content:
+                    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                return content
+            elif r.status_code == 404:
+                # Fallback to active models on Groq/OpenAI compatible servers
+                fallbacks = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound"]
+                for fb in fallbacks:
+                    if fb != self.model_name:
+                        payload["model"] = fb
+                        r_fb = self.requests.post(f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=60)
+                        if r_fb.status_code == 200:
+                            data = r_fb.json()
+                            content = data["choices"][0]["message"].get("content", "")
+                            if "<think>" in content and "</think>" in content:
+                                content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                            return content
+                return f"[LLM Error 404]: Model '{self.model_name}' not found on endpoint."
             else:
                 return f"[LLM Error {r.status_code}]: {r.text}"
         except Exception as e:
@@ -155,7 +172,7 @@ def set_active_llm(provider: str, model: Optional[str] = None) -> Dict[str, Any]
             "gemini": "gemini-3.1-flash-lite",
             "openai": "gpt-4o-mini",
             "anthropic": "claude-3-5-sonnet-20241022",
-            "groq": "llama-3.3-70b-versatile",
+            "groq": "openai/gpt-oss-120b",
             "local": os.getenv("LLM_MODEL", "qwen3.5-2b")
         }
         _ACTIVE_OVERRIDE["model"] = defaults.get(provider, "gemini-3.1-flash-lite")
@@ -222,8 +239,8 @@ def get_available_llm_options(only_configured: bool = False) -> list:
         {
             "id": "groq",
             "name": "Groq",
-            "default_model": "llama-3.3-70b-versatile",
-            "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"],
+            "default_model": "openai/gpt-oss-120b",
+            "models": ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound"],
             "configured": bool(os.getenv("GROQ_API_KEY")),
             "active": curr["provider"] == "groq"
         },
@@ -281,7 +298,7 @@ def get_llm_provider(
         instance = AnthropicProvider(model_name=target_model)
 
     elif provider == "groq":
-        target_model = model or "llama-3.3-70b-versatile"
+        target_model = model or "openai/gpt-oss-120b"
         api_key = os.getenv("GROQ_API_KEY", "")
         instance = OpenAICompatibleProvider(
             model_name=target_model,
@@ -317,7 +334,7 @@ def get_current_llm_info() -> Dict[str, Any]:
         "gemini": "gemini-3.1-flash-lite",
         "openai": "gpt-4o-mini",
         "anthropic": "claude-3-5-sonnet-20241022",
-        "groq": "llama-3.3-70b-versatile",
+        "groq": "openai/gpt-oss-120b",
         "local": os.getenv("LLM_MODEL", "qwen3.5-2b")
     }
     model = _ACTIVE_OVERRIDE["model"] or os.getenv("LLM_MODEL", default_models.get(provider, "gemini-3.1-flash-lite"))

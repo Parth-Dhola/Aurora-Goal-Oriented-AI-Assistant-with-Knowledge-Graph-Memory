@@ -144,3 +144,4 @@ yarn-error.log*
 *~
 .cache/
 .flashrank_cache/
+.apollo_cache/
