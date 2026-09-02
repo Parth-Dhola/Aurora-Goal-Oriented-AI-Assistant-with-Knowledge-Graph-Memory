@@ -566,7 +566,7 @@ async def cmd_docs(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── /model (Switch AI Provider & Model) ────────────────────────────────────────
 async def cmd_model(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Display active AI model and inline buttons to switch providers."""
+    """Display active AI model and inline buttons to choose providers."""
     tid = update.effective_user.id
     token = _get_token(tid)
     if not token:
@@ -584,30 +584,24 @@ async def cmd_model(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         options = data.get("options", [])
         configured_opts = [opt for opt in options if opt.get("configured")]
         if not configured_opts:
-            configured_opts = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite"}]
+            configured_opts = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite", "models": ["gemini-3.1-flash-lite"]}]
 
         buttons = []
-        row = []
         for opt in configured_opts:
             prov = opt.get("id")
             pname = opt.get("name", prov.capitalize())
-            model_sublist = opt.get("models") or [opt.get("default_model")]
-            for mname in model_sublist:
-                short_m = mname.split("/")[-1] if "/" in mname else mname
-                btn = InlineKeyboardButton(f"{pname} • {short_m}", callback_data=f"llm:{prov}:{mname}")
-                row.append(btn)
-                if len(row) == 2:
-                    buttons.append(row)
-                    row = []
-        if row:
-            buttons.append(row)
+            models = opt.get("models") or [opt.get("default_model")]
+            is_active = (prov.lower() == curr.get("provider", "").lower())
+            status = " [Active]" if is_active else ""
+            btn = InlineKeyboardButton(f"{pname} ({len(models)} models){status}", callback_data=f"llm_prov:{prov}")
+            buttons.append([btn])
 
         keyboard = InlineKeyboardMarkup(buttons)
 
         await update.message.reply_text(
             f"🧠 *AI Model Settings*\n\n"
             f"Currently Active: {active_desc}\n\n"
-            f"Tap an option below to switch Aurora's brain dynamically:",
+            f"Select an AI Provider to view its available models:",
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
@@ -617,7 +611,7 @@ async def cmd_model(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_model_switch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Handle inline button click for switching LLM."""
+    """Handle inline button click for switching LLM or navigating provider models."""
     query = update.callback_query
     await query.answer()
 
@@ -627,9 +621,82 @@ async def handle_model_switch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔒 Session expired. Please log in with /login")
         return
 
-    # callback format: "llm:<provider>:<model>"
-    parts = query.data.split(":")
-    if len(parts) >= 3:
+    data_str = query.data
+
+    # 1. Return back to providers menu
+    if data_str == "llm_back":
+        try:
+            r = requests.get(f"{API_BASE}/llm/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            data = r.json()
+            curr = data.get("current", {})
+            active_desc = f"*{curr.get('provider', 'unknown').upper()}* (`{curr.get('model', 'default')}`)"
+            options = [opt for opt in data.get("options", []) if opt.get("configured")]
+            
+            buttons = []
+            for opt in options:
+                prov = opt.get("id")
+                pname = opt.get("name", prov.capitalize())
+                models = opt.get("models") or [opt.get("default_model")]
+                is_active = (prov.lower() == curr.get("provider", "").lower())
+                status = " [Active]" if is_active else ""
+                buttons.append([InlineKeyboardButton(f"{pname} ({len(models)} models){status}", callback_data=f"llm_prov:{prov}")])
+
+            await query.edit_message_text(
+                f"🧠 *AI Model Settings*\n\n"
+                f"Currently Active: {active_desc}\n\n"
+                f"Select an AI Provider to view its available models:",
+                reply_markup=InlineKeyboardMarkup(buttons),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error refreshing providers: {e}")
+        return
+
+    # 2. Show models for selected provider: "llm_prov:<provider>"
+    if data_str.startswith("llm_prov:"):
+        prov_id = data_str.split(":", 1)[1]
+        try:
+            r = requests.get(f"{API_BASE}/llm/", headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            data = r.json()
+            curr = data.get("current", {})
+            options = data.get("options", [])
+            target_opt = next((o for o in options if o.get("id") == prov_id), None)
+            if not target_opt:
+                await query.edit_message_text("❌ Provider not found.")
+                return
+
+            pname = target_opt.get("name", prov_id.capitalize())
+            models = target_opt.get("models") or [target_opt.get("default_model")]
+            
+            buttons = []
+            row = []
+            for m in models:
+                short_m = m.split("/")[-1] if "/" in m else m
+                is_active = (prov_id == curr.get("provider") and m == curr.get("model"))
+                label = f"{'✓ ' if is_active else ''}{short_m}"
+                row.append(InlineKeyboardButton(label, callback_data=f"llm_set:{prov_id}:{m}"))
+                if len(row) == 2:
+                    buttons.append(row)
+                    row = []
+            if row:
+                buttons.append(row)
+
+            buttons.append([InlineKeyboardButton("« Back to Providers", callback_data="llm_back")])
+
+            await query.edit_message_text(
+                f"🧠 *{pname} Models*\n\n"
+                f"Currently Active: `{curr.get('model', 'default')}`\n\n"
+                f"Tap a model below to activate:",
+                reply_markup=InlineKeyboardMarkup(buttons),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error fetching models: {e}")
+        return
+
+    # 3. Switch to model: "llm_set:<provider>:<model>"
+    if data_str.startswith("llm_set:"):
+        parts = data_str.split(":", 2)
         provider = parts[1]
         model = parts[2]
         try:
@@ -643,7 +710,7 @@ async def handle_model_switch(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if res.get("status") == "success":
                 await query.edit_message_text(
                     f"✅ *AI Provider Switched Successfully!*\n\n"
-                    f"• Provider: `{provider}`\n"
+                    f"• Provider: `{provider.upper()}`\n"
                     f"• Model: `{model}`\n\n"
                     f"All new queries and document notes will now use this model!",
                     parse_mode="Markdown"

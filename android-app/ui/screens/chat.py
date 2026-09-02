@@ -329,7 +329,7 @@ class ChatScreen(Screen):
         content = BoxLayout(orientation="vertical", spacing=dp(10), padding=dp(12))
 
         title = Label(
-            text="Select Active AI Brain",
+            text="Select AI Provider",
             font_size=sp(16),
             bold=True,
             size_hint_y=None,
@@ -338,8 +338,11 @@ class ChatScreen(Screen):
         )
         content.add_widget(title)
 
+        body_container = BoxLayout(orientation="vertical", spacing=dp(8), size_hint=(1, 1))
+        content.add_widget(body_container)
+
         popup = Popup(
-            title="Available AI Models",
+            title="AI Brain Selection",
             content=content,
             size_hint=(0.94, 0.70),
             background_color=t["header_bg"]
@@ -363,25 +366,85 @@ class ChatScreen(Screen):
             
             threading.Thread(target=_worker, daemon=True).start()
 
-        # Scrollable container for all available models
-        scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
-        model_list_box = BoxLayout(orientation="vertical", spacing=dp(6), size_hint_y=None)
-        model_list_box.bind(minimum_height=model_list_box.setter('height'))
+        def render_providers():
+            body_container.clear_widgets()
+            title.text = "Select AI Provider"
 
-        configured_models = [opt for opt in self.available_options if opt.get("configured")]
-        if not configured_models:
-            configured_models = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite", "models": ["gemini-3.1-flash-lite"]}]
+            scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+            prov_box = BoxLayout(orientation="vertical", spacing=dp(8), size_hint_y=None)
+            prov_box.bind(minimum_height=prov_box.setter('height'))
 
-        current_active_model = getattr(self, "active_model", "")
+            configured_opts = [opt for opt in self.available_options if opt.get("configured")]
+            if not configured_opts:
+                configured_opts = [{"id": "gemini", "name": "Google Gemini", "default_model": "gemini-3.1-flash-lite", "models": ["gemini-3.1-flash-lite"]}]
 
-        for opt in configured_models:
-            prov = opt.get("id")
-            pname = opt.get("name", prov.capitalize())
-            model_sublist = opt.get("models") or [opt.get("default_model")]
+            for opt in configured_opts:
+                prov = opt.get("id")
+                pname = opt.get("name", prov.capitalize())
+                models = opt.get("models") or [opt.get("default_model")]
+                is_active_prov = (prov.lower() == self.active_llm.lower())
 
-            for mname in model_sublist:
-                label_text = f"{pname} • {mname}"
-                is_active = (prov.lower() == self.active_llm.lower() and (current_active_model == mname or not current_active_model and mname == opt.get("default_model")))
+                status_suffix = f"  [Active: {getattr(self, 'active_model', opt.get('default_model'))}]" if is_active_prov else ""
+                btn_text = f"{pname}  ({len(models)} models){status_suffix}"
+
+                btn = Button(
+                    text=btn_text,
+                    size_hint_y=None,
+                    height=dp(46),
+                    background_color=t["btn_primary"] if is_active_prov else t["chip_bg"],
+                    background_normal="",
+                    color=(1, 1, 1, 1) if is_active_prov else t["chip_fg"],
+                    font_size=sp(13),
+                    bold=True
+                )
+                btn.bind(on_press=lambda inst, o=opt: render_models_for(o))
+                prov_box.add_widget(btn)
+
+            scroll.add_widget(prov_box)
+            body_container.add_widget(scroll)
+
+            close_btn = Button(
+                text="Close",
+                size_hint_y=None,
+                height=dp(38),
+                background_color=t["btn_grey"],
+                background_normal="",
+                color=t["btn_grey_fg"],
+                font_size=sp(13)
+            )
+            close_btn.bind(on_press=popup.dismiss)
+            body_container.add_widget(close_btn)
+
+        def render_models_for(provider_opt):
+            body_container.clear_widgets()
+            prov = provider_opt.get("id")
+            pname = provider_opt.get("name", prov.capitalize())
+            title.text = f"{pname} Models"
+
+            # Top navigation bar with Back button
+            back_btn = Button(
+                text="« Back to Providers",
+                size_hint_y=None,
+                height=dp(36),
+                background_color=t["btn_grey"],
+                background_normal="",
+                color=t["btn_grey_fg"],
+                font_size=sp(12),
+                bold=True
+            )
+            back_btn.bind(on_press=lambda inst: render_providers())
+            body_container.add_widget(back_btn)
+
+            scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False)
+            model_box = BoxLayout(orientation="vertical", spacing=dp(6), size_hint_y=None)
+            model_box.bind(minimum_height=model_box.setter('height'))
+
+            models = provider_opt.get("models") or [provider_opt.get("default_model")]
+            current_active_model = getattr(self, "active_model", "")
+
+            for mname in models:
+                is_active = (prov.lower() == self.active_llm.lower() and (current_active_model == mname or not current_active_model and mname == provider_opt.get("default_model")))
+                label_text = f"{mname}  {'[✓ Active]' if is_active else ''}"
 
                 btn = Button(
                     text=label_text,
@@ -393,24 +456,13 @@ class ChatScreen(Screen):
                     font_size=sp(12),
                     bold=True
                 )
-                btn.bind(on_press=lambda inst, p=prov, m=mname, l=label_text: switch_to(p, m, l))
-                model_list_box.add_widget(btn)
+                btn.bind(on_press=lambda inst, p=prov, m=mname, l=f"{pname} ({mname})": switch_to(p, m, l))
+                model_box.add_widget(btn)
 
-        scroll.add_widget(model_list_box)
-        content.add_widget(scroll)
+            scroll.add_widget(model_box)
+            body_container.add_widget(scroll)
 
-        close_btn = Button(
-            text="Close",
-            size_hint_y=None,
-            height=dp(38),
-            background_color=t["btn_grey"],
-            background_normal="",
-            color=t["btn_grey_fg"],
-            font_size=sp(13)
-        )
-        close_btn.bind(on_press=popup.dismiss)
-        content.add_widget(close_btn)
-
+        render_providers()
         popup.open()
 
     def open_mcp_info(self, *args):
