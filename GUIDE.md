@@ -122,16 +122,22 @@ When a user uploads a PDF or text file:
 ---
 
 ### D. Universal Multi-LLM Provider Engine (`backend/services/llm_provider.py`)
-Aurora features a unified provider interface supporting hot-swapping between cloud and offline models:
+Aurora features a unified provider interface supporting dynamic runtime switching between cloud and offline models:
 
-- **Google Gemini**: `gemini-3.1-flash-lite`, `gemini-1.5-pro` (Default cloud model)
-- **Local Offline LLM**: Automatic discovery via OpenAI-compatible endpoints (`http://localhost:8080/v1/models` or Ollama `http://localhost:11434/v1/models`)
-- **OpenAI**: `gpt-4o-mini`, `gpt-4o`
-- **Groq**: `llama-3.3-70b-versatile` (Ultra low latency)
-- **Anthropic**: `claude-3-5-sonnet-20241022`
+- **Google Gemini**: `gemini-3.1-flash-lite`, `gemini-1.5-pro`, `gemini-1.5-flash` (Default cloud provider)
+- **Groq**: Dynamic live discovery of all models on your account (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`, `qwen/qwen3.6-27b`, `groq/compound`, etc.)
+- **Local Offline LLM**: Automatic model discovery via OpenAI-compatible endpoints (Ollama `http://localhost:11434/v1/models`, LM Studio, or vLLM)
+- **OpenAI**: `gpt-4o-mini`, `gpt-4o`, `o1-mini`
+- **Anthropic**: `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`
 
-#### Live Dynamic Filtering:
-The backend queries `/api/llm/` and checks endpoint liveliness. Only configured providers (with valid API keys or active local servers) appear in the selection popup.
+#### Hierarchical 2-Level Selection UX:
+To keep the UI clean regardless of how many models exist across providers, both the Mobile App and Telegram Bot (`/model`) use a 2-step navigation workflow:
+1. **Level 1 (Provider Picker)**: Displays only currently configured providers (with valid API keys or active local servers) along with total model counts and active indicators.
+2. **Level 2 (Sub-Model View)**: Tapping any provider opens its full list of models with `« Back to Providers` navigation and 1-tap switching.
+
+#### Resilience & Reasoning Formatting:
+- **Auto-404 Failover**: If an upstream provider deprecates or renames a model ID, Aurora catches the `404` error and transparently retries with active model alternatives in <200ms.
+- **Reasoning Tag Cleanup**: Automatically filters internal `<think>...</think>` tags produced by reasoning models before returning the final response.
 
 ---
 

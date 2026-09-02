@@ -99,11 +99,11 @@
 |---|---|
 | **CRAG Agent** | 7-node LangGraph StateGraph — extract, retrieve, grade, generate, check groundedness, Apollo multi-tier research fallback |
 | **Apollo Research (MCP)** | Anti-poisoned multi-source research engine querying **arXiv**, **Semantic Scholar**, **GitHub**, **DuckDuckGo**, and **Wikipedia** with **FlashRank CPU reranking** ([Apollo Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP)) |
-| **Multi-LLM Engine** | Dynamic runtime switching between **Gemini**, **Local LLMs (llama.cpp/Ollama)**, **OpenAI**, **Claude**, and **Groq** |
+| **Multi-LLM Engine** | Dynamic runtime switching between **Gemini**, **Groq** (with auto model discovery), **Local LLMs (Ollama/LM Studio)**, **OpenAI**, and **Claude** with 2-level hierarchical selection |
 | **Hybrid GraphRAG** | Ingests PDFs & textbooks, extracts hierarchical topics, algorithms, and links them to the KG |
 | **Obsidian Vault Sync** | Bi-directional Markdown export of your Knowledge Graph with live `[[wikilinks]]` and Dataview tables |
-| **Modular Android App** | Kivy mobile/desktop app with real PNG icon assets, OpenGL vector status dot, soft keyboard avoidance, and 3 themes |
-| **Telegram Bot** | Full conversational interface with `/paper` research query, 1-tap `/model` switcher, file ingestion, and goal tracking |
+| **Modular Android App** | Kivy mobile/desktop app with real PNG icon assets, OpenGL vector status dot, soft keyboard avoidance, hierarchical model picker, and 3 themes |
+| **Telegram Bot** | Full conversational interface with `/paper` research query, 2-step `/model` switcher, file ingestion, and goal tracking |
 | **CI/CD & Pytest** | 33 automated test cases with manual 1-click APK build workflow |
 
 ---
