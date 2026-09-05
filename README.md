@@ -3,7 +3,7 @@
 [![CI/CD](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions)
 [![Android APK](https://img.shields.io/badge/Android%20APK-Ready%20(Buildozer)-success.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions/workflows/build-apk.yml)
 [![Tests](https://img.shields.io/badge/tests-33%20passed-brightgreen.svg)](https://github.com/Parth-Dhola/Aurora-Goal-Oriented-AI-Assistant-with-Knowledge-Graph-Memory/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-red.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2.28-orange)](https://github.com/langchain-ai/langgraph)
@@ -272,6 +272,10 @@ Output:
 
 ---
 
-## License
+## License & Commercial Terms
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Aurora is licensed under the **[PolyForm Noncommercial License 1.0.0](LICENSE)**.
+
+- **Free Personal & Academic Use**: You are free to view, clone, run, modify, and self-host Aurora for personal learning, educational use, and non-commercial research.
+- **Open Derivative Works**: Any changes, additions, or derivative works must remain open under the exact same PolyForm Noncommercial License.
+- **Commercial Use & Inquiries**: Any commercial exploitation, resale, managed SaaS hosting, or integration into closed revenue-generating products requires a separate commercial license. For commercial inquiries, contact **Parth Dhola**.
