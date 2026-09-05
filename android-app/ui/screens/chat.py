@@ -474,9 +474,9 @@ class ChatScreen(Screen):
 
         lbl = Label(
             text=(
-                f"[b]Apollo Research Engine (MCP)[/b]\n\n"
+                f"[b]Apollo Anti-Poison & Anti-Hallucination (MCP)[/b]\n\n"
                 f"• [b]Status:[/b] {status_text}\n"
-                f"• [b]Anti-Poison Filter:[/b] Active\n"
+                f"• [b]Guardrails:[/b] Anti-Poison & Anti-Hallucination\n"
                 f"• [b]Reranker:[/b] FlashRank CPU (<25ms)\n"
                 f"• [b]Sources:[/b] arXiv, Semantic Scholar, GitHub, DuckDuckGo\n"
                 f"• [b]Protocol:[/b] Standalone FastMCP 1.0\n"

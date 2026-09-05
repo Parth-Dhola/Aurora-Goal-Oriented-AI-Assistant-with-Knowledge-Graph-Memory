@@ -141,7 +141,7 @@ To keep the UI clean regardless of how many models exist across providers, both 
 
 ---
 
-### E. Apollo Anti-Poisoned Research Engine Tool ([Apollo MCP Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP))
+### E. Apollo Anti-Poison & Anti-Hallucination Research Engine Tool ([Apollo MCP Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-AntiHallucination-Research-MCP))
 **Apollo** is a modular Model Context Protocol (MCP) tool component used by Aurora for zero-cost academic paper retrieval, open-source code search, and prompt injection defense.
 
 #### System Behavior: When Apollo is ON vs. When Apollo is OFF

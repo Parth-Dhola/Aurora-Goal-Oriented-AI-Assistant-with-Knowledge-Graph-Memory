@@ -98,7 +98,7 @@
 | Feature | Description |
 |---|---|
 | **CRAG Agent** | 7-node LangGraph StateGraph — extract, retrieve, grade, generate, check groundedness, Apollo multi-tier research fallback |
-| **Apollo Research (MCP)** | Anti-poisoned multi-source research engine querying **arXiv**, **Semantic Scholar**, **GitHub**, **DuckDuckGo**, and **Wikipedia** with **FlashRank CPU reranking** ([Apollo Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP)) |
+| **Apollo Research (MCP)** | Anti-poisoned multi-source research engine querying **arXiv**, **Semantic Scholar**, **GitHub**, **DuckDuckGo**, and **Wikipedia** with **FlashRank CPU reranking** ([Apollo Repo](https://github.com/Parth-Dhola/Apollo-AntiPoison-AntiHallucination-Research-MCP)) |
 | **Multi-LLM Engine** | Dynamic runtime switching between **Gemini**, **Groq** (with auto model discovery), **Local LLMs (Ollama/LM Studio)**, **OpenAI**, and **Claude** with 2-level hierarchical selection |
 | **Hybrid GraphRAG** | Ingests PDFs & textbooks, extracts hierarchical topics, algorithms, and links them to the KG |
 | **Obsidian Vault Sync** | Bi-directional Markdown export of your Knowledge Graph with live `[[wikilinks]]` and Dataview tables |

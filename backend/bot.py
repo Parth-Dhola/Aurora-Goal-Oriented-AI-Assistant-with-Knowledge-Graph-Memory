@@ -340,7 +340,7 @@ async def cmd_mcp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"• Reranker: {'⚡ FlashRank CPU Cross-Encoder (<25ms)' if online else 'None (Standard search rank)'}\n"
             f"• Ingestion Sources: {'arXiv, Semantic Scholar, GitHub, DuckDuckGo' if online else 'DuckDuckGo Live'}\n"
             "• Architecture: Standalone FastMCP Protocol\n\n"
-            "🔗 [Apollo Repository](https://github.com/Parth-Dhola/Apollo-AntiPoison-Research-MCP)"
+            "🔗 [Apollo Repository](https://github.com/Parth-Dhola/Apollo-AntiPoison-AntiHallucination-Research-MCP)"
         )
         await update.message.reply_text(msg, parse_mode="Markdown", disable_web_page_preview=True)
     except Exception as e:
